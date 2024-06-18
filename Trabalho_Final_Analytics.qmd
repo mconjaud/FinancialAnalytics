@@ -1,5 +1,5 @@
 ---
-title: "Meus ativos"
+title: "Trabalho Final Finalcial analytics"
 format:
   html:
     code-fold: true
@@ -8,16 +8,7 @@ execute:
   freeze: true
 ---
 
-Quiz para aquecer: <https://forms.gle/CcMvpyXdhaacQtPi8>
-
-Nosso lab terá 2 partes:
-
-- Primeiro, vamos fazer a descritiva e rodar os modelos GARCH
-- Depois, vamos trabalhar com otimização do portfolio, CAPM e VaR
-
-Vamos dividir em grupos. Quem estiver na frente, pode avançar.
-
-Teremos 2 momentos para discutir os avanços.
+Livrarias necessárias
 
 ```{r}
 #| code-fold: show
@@ -31,6 +22,7 @@ library(zoo)
 library(xts)
 ```
 
+Escolhemos 6 ações de mercados diferentes para analisar a volatilidade
 
 ```{r}
 #| code-fold: show
@@ -69,6 +61,7 @@ View(da)
 
 da_tsibble <- da |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
+  
 ```
 
 
