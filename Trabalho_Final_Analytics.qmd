@@ -22,8 +22,13 @@ Teremos 2 momentos para discutir os avanços.
 ```{r}
 #| code-fold: show
 #| message: false
+library(ggplot2)
 library(fpp3)
 library(rugarch)
+library(tsibble)
+library(yfR)
+library(zoo)
+library(xts)
 ```
 
 
@@ -43,6 +48,7 @@ ativos <- c(
   "TASA4.SA"
 )
 ```
+
 
 Vamos trabalhar tanto com os dados no formato de tibble quanto no formato de tsibble.
 
@@ -65,26 +71,38 @@ da_tsibble <- da |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
 ```
 
-Plotar
-```{r}
-#| fig.height: 10
-#| fig.width: 8
-export
-```
-```{r}
-#| fig.height: 10
-#| fig.width: 8
-da_tsibble |>
-  autoplot(price_close, colour = "black") +
-  facet_wrap(~ticker, scales = "free_y", ncol = 1)
-```
+
+Plotando preço
 
 ```{r}
 #| fig.height: 10
 #| fig.width: 8
 da_tsibble |>
-  autoplot(ret_closing_prices, colour = "black") +
+  autoplot(price_adjusted, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1)
+```
+
+Plotando retorno
+
+```{r}
+#| fig.height: 10
+#| fig.width: 8
+da_tsibble |>
+  autoplot(ret_adjusted_prices, colour = "black") +
+  facet_wrap(~ticker, scales = "free_y", ncol = 1) +
+  scale_x_date(date_breaks = "3 months", date_labels = "%Y %Q")
+  # precisa ajustar o label de quarter no gráfico
+```
+
+
+```{r}
+da_2 <- da %>%
+  select(ticker, ref_date, ret_closing_prices)
+da_2$ret <- xts(petro[,-1],order.by = ymd(petro$ref_date))[-1,]
+da_2$ret2 = ret**2
+
+plot(da_2)
+
 ```
 
 Data mínima comum a todas as séries
@@ -103,6 +121,27 @@ data_corte
 da_train <- da |>
   dplyr::filter(ref_date > data_corte)
 ```
+
+# Verificando se há heterocedasticidade condicional
+
+```{r}
+Box.test(da$price_adjusted, type = "Ljung-Box")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Descritivas bacanas
