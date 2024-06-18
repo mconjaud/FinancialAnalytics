@@ -28,9 +28,7 @@ Escolhemos 6 ações de mercados diferentes para analisar a volatilidade
 #| code-fold: show
 #| message: false
 start_date <- '2022-01-01'
-# esses são ativos de fundos imobiliários que eu ja tive
-# e queria saber fiz um péssimo investimento
-# ou apenas ruim.
+
 ativos <- c(
 "NVDC34.SA",
   "BCSA34.SA", 
