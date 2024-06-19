@@ -8,11 +8,10 @@ execute:
   freeze: true
 ---
 
-Livrarias necessárias
+## Selecionando Livrarias
 
 ```{r}
-#| code-fold: show
-#| message: false
+
 library(ggplot2)
 library(fpp3)
 library(rugarch)
@@ -20,17 +19,20 @@ library(tsibble)
 library(yfR)
 library(zoo)
 library(xts)
+library(lubridate)
+
 ```
 
-Escolhemos 6 ações de mercados diferentes para analisar a volatilidade
+## Pré Procesamento 
+Seleção das Ações/Ativos e data de ínicio da série 
+Escolhemos ínicio de 2022 para escpar dos impactos da pandemia 
 
 ```{r}
-#| code-fold: show
-#| message: false
+
 start_date <- '2022-01-01'
 
 ativos <- c(
-"NVDC34.SA",
+  "NVDC34.SA",
   "BCSA34.SA", 
   "AMZO34.SA",
   "RENT3.SA",
@@ -39,17 +41,15 @@ ativos <- c(
 )
 ```
 
-
-Vamos trabalhar tanto com os dados no formato de tibble quanto no formato de tsibble.
+Selecionando ações e transformando dataframe em tsbible 
 
 ```{r}
-#| code-fold: show
-#| message: false
-# library(curl)
-# has_internet_via_proxy <<- TRUE
+
 da <- yfR::yf_get(
   ativos,
   first_date = start_date,
+  last_date = Sys.Date(),
+  bench_ticker = "^BVSP",
   type_return = "log",
   freq_data = "daily",
   do_complete_data = TRUE
@@ -62,98 +62,54 @@ da_tsibble <- da |>
   
 ```
 
+## 1. Plotar gráficos de preço e retorno e analisar possível heterocedasticidade condicional:
 
-Plotando preço
+Gráfico de preço
 
 ```{r}
-#| fig.height: 10
-#| fig.width: 8
+quarter_label <- functio(x) {
+  paste0(year(x), "Q", quarter(x))
+}
+
 da_tsibble |>
   autoplot(price_adjusted, colour = "black") +
-  facet_wrap(~ticker, scales = "free_y", ncol = 1)
+  facet_wrap(~ticker, scales = "free_y", ncol = 1)+
+  scale_x_date(date_breaks = "3 months", label=quarter_label)
+  
 ```
 
-Plotando retorno
+Gráfico de retorno
 
 ```{r}
-#| fig.height: 10
-#| fig.width: 8
+
+quarter_label <- function(x) {
+  paste0(year(x), "Q", quarter(x))
+}
+
 da_tsibble |>
   autoplot(ret_adjusted_prices, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1) +
-  scale_x_date(date_breaks = "3 months", date_labels = "%Y %Q")
-  # precisa ajustar o label de quarter no gráfico
-```
-
-
-```{r}
-da_2 <- da %>%
-  select(ticker, ref_date, ret_closing_prices)
-da_2$ret <- xts(petro[,-1],order.by = ymd(petro$ref_date))[-1,]
-da_2$ret2 = ret**2
-
-plot(da_2)
+  scale_x_date(date_breaks = "3 months", labels = quarter_label)
 
 ```
 
-Data mínima comum a todas as séries
-
-```{r}
-data_corte <- da |>
-  dplyr::group_by(ticker) |>
-  dplyr::filter(ref_date == min(ref_date)) |>
-  dplyr::ungroup() |>
-  with(max(ref_date))
-
-data_corte
-```
-
-```{r}
-da_train <- da |>
-  dplyr::filter(ref_date > data_corte)
-```
-
-# Verificando se há heterocedasticidade condicional
-
-```{r}
-Box.test(da$price_adjusted, type = "Ljung-Box")
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Descritivas bacanas
-
-- ACF/PACF dos retornos
-- visualizar os retornos ao quadrado
-- ACF/PACF dos retornos ao quadrado
+ACF/PACF dos retornos
 
 ```{r}
 da_tsibble |>
   ACF(ret_closing_prices) |>
   autoplot()
-```
 
+```
 
 ```{r}
 da_tsibble |>
   PACF(ret_closing_prices) |>
   autoplot()
+
 ```
 
+visualizar os retornos ao quadrado
 
 ```{r}
 da_tsibble |>
@@ -162,6 +118,7 @@ da_tsibble |>
   facet_wrap(~ticker, ncol = 1)
 ```
 
+ACF/PACF dos retornos ao quadrado
 
 ```{r}
 da_tsibble |>
@@ -177,18 +134,21 @@ da_tsibble |>
   autoplot()
 ```
 
-Normalidade
 
+# Normalidade: Histograma + Gráfico QQ + teste Shapiro-Wilk
+
+Histograma 
 ```{r}
-# histogram with geom_histogram of each ticker
-da_train |>
+
+da |>
   ggplot(aes(x = ret_closing_prices)) +
   geom_histogram(bins = 90) +
   facet_wrap(~ticker, ncol = 3)
 ```
 
+Gráfico QQ
 ```{r}
-da_train |>
+da |>
   group_by(ticker) |>
   summarise(
     gg = list(
@@ -200,24 +160,52 @@ da_train |>
   ) |>
   dplyr::pull(gg) |>
   patchwork::wrap_plots()
+
+# Gráfico não quis ajudar 
 ```
 
-Com outra distribuição
-
+Teste Shapiro-Wilk
 ```{r}
-da_train |>
-  group_by(ticker) |>
-  summarise(
-    gg = list(
-      ggplot(pick(everything()), aes(sample = ret_closing_prices)) +
-        geom_qq(distribution = qt, dparams = list(df = 3)) +
-        geom_qq_line(distribution = qt, dparams = list(df = 3)) +
-        labs(title = cur_group())
-      )
-  ) |>
-  dplyr::pull(gg) |>
-  patchwork::wrap_plots()
+
+shapiro.test(as.vector(da$ret_closing_prices))
+
+#Dúvida: Deveríamos rodar o teste para cada uma das ações?
+
 ```
+
+Conclusão do Teste Shapiro-Wilk:
+* Dado que o p-value é extremamente pequeno: Rejeitamos a hipótese nula.
+Isso significa que há evidências significativas de que os dados não seguem uma distribuição normal.
+
+# Heterocedasticidade condicional (Efeito Arch): Ljung-Box + Lagrange Multiplier
+
+Teste Ljung-Box
+```{r}
+Box.test(da$price_adjusted, type = "Ljung-Box")
+
+#Dúvida: Deveríamos rodar o teste para cada uma das ações?
+
+```
+
+Conclusão do Teste Ljung-Box:
+* Dado que o p-value é < 2.2e-16, que é extremamente pequeno: Rejeitamos a hipótese nula. Isso significa que há evidências significativas de autocorrelação na série temporal 
+
+Teste LM (Lagrange Multiplier)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Ajustando modelos garch
 
