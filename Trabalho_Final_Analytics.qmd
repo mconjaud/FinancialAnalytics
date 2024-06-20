@@ -1,11 +1,16 @@
 ---
 title: "Trabalho Final Finalcial analytics"
+authors:
+  - name: Michel
+  - name: Hélio
+  - name: Renan
+  - name: Tiago
 format:
   html:
     code-fold: true
-    monofont: "JetBrains Mono"
 execute:
   freeze: true
+  warning: false
 ---
 
 # Bibliotecas
@@ -21,7 +26,8 @@ library(zoo)
 library(xts)
 library(lubridate)
 library(patchwork)
-
+library(lmtest)
+library(fGarch)
 ```
 
 ## Pré Procesamento 
@@ -30,7 +36,7 @@ Escolhemos ínicio de 2022 para escapar dos impactos da pandemia
 
 ```{r}
 
-start_date <- '2022-01-01'
+start_date <- '2021-06-01'
 
 ativos <- c(
   "NVDC34.SA",
@@ -45,7 +51,7 @@ ativos <- c(
 Selecionando ações e transformando dataframe em tsbible 
 
 ```{r}
-
+#| output: false
 da <- yfR::yf_get(
   ativos,
   first_date = start_date,
@@ -56,8 +62,6 @@ da <- yfR::yf_get(
   do_complete_data = TRUE
 )
 
-View(da)
-
 da_tsibble <- da |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
   
@@ -65,52 +69,42 @@ da_tsibble <- da |>
 
 ## 1. Plotar gráficos de preço e retorno e analisar possível heterocedasticidade condicional:
 
-#### Gráfico de preço
+## 1.1 Gráfico de preços e dos log retornos
 
+### Preços
 ```{r}
+#Função para formatar legenda
 quarter_label <- function(x) {
   paste0(year(x), "Q", quarter(x))
 }
+```
 
+
+```{r}
+#criando gráfico da série de preços
 da_tsibble |>
   autoplot(price_adjusted, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1)+
-  scale_x_date(date_breaks = "3 months", label=quarter_label)
-  
-```
+  scale_x_date(date_breaks = "3 months", label=quarter_label) +
+  labs ( title = "Série de Preço", y = "Preço", x = "Data") +
+  theme(plot.title = element_text(hjust = 0.5))
+```  
 
-#### Gráfico de retorno
-
+### Log Retornos
 ```{r}
-
-quarter_label <- function(x) {
-  paste0(year(x), "Q", quarter(x))
-}
-
+#criando gráfico da série de retornos
 da_tsibble |>
   autoplot(ret_adjusted_prices, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1) +
-  scale_x_date(date_breaks = "3 months", labels = quarter_label)
+  scale_x_date(date_breaks = "3 months", labels = quarter_label) +
+  labs ( title = "Série de Log Retornos", y = "Log Retornos", x = "Data") +
+  theme(plot.title = element_text(hjust = 0.5))
 
 ```
 
-#### ACF/PACF dos retornos
+## 1.2 Analisando possível heterodasticidade condicional
 
-```{r}
-da_tsibble |>
-  ACF(ret_closing_prices) |>
-  autoplot()
-
-```
-
-```{r}
-da_tsibble |>
-  PACF(ret_closing_prices) |>
-  autoplot()
-```
-
-
-visualizar os retornos ao quadrado
+Faremos a transformação da variável de retorno em retorno quadrático, que será a proxi da volatividade dos retornos.
 
 ```{r}
 da_tsibble |>
@@ -119,99 +113,112 @@ da_tsibble |>
   facet_wrap(~ticker, ncol = 1)
 ```
 
-ACF/PACF dos retornos ao quadrado
+Com a proxi da volatividade, verificaremos a existência de heterodasticidade condicional através dos seguintes métodos:
+
+1.2.1. ACF dos retornos quadráticos
+
+1.2.2. Teste Ljung-Box dos retornos quadráticos
+
+### 1.2.1. ACF dos retornos ao quadrado
+
+```{r}
+# Gerando variável dos retornos quadráticos
+da_tsibble  <-  da_tsibble |>
+  dplyr::mutate(ret2 = ret_closing_prices^2)
+```
 
 ```{r}
 da_tsibble |>
-  dplyr::mutate(ret2 = ret_closing_prices^2) |>
   ACF(ret2) |>
   autoplot()
 ```
 
+### 1.2.2. Testes Ljung-Box
 ```{r}
-da_tsibble |>
-  dplyr::mutate(ret2 = ret_closing_prices^2) |>
-  PACF(ret2) |>
-  autoplot()
+
+resultados <- data.frame(empresa = character(), p_value = numeric())
+
+for (empresa in ativos) {
+  # Filtrar o dataframe para a empresa atual
+  da_tsibble_filtered <- da_tsibble |> filter(ticker == empresa)
+  
+  # Realizar o teste Box-Ljung
+  box_test_result <- Box.test(da_tsibble_filtered$ret2, type = "Ljung-Box")
+  
+  # Adicionar o resultado ao dataframe de resultados
+  resultados <- rbind(resultados, 
+                               data.frame(empresa = empresa, 
+                                          p_value = box_test_result$p.value 
+                                          ))
+}
+
+print(resultados)
 ```
 
+Conclusões:
 
-#### Normalidade: Histograma + Gráfico QQ + teste Shapiro-Wilk
+ACF:
 
-Histograma 
-```{r}
+As empresas NVDC34.SA, RENT3.SA, PRIO3.SA e TASA4.SA têm p-values maiores que 0.05, indicando que não há evidências suficientes para rejeitar a hipótese nula de que os dados são independentemente distribuídos. Isso sugere que não há autocorrelação nos dados dessas empresas.
 
-da |>
-  ggplot(aes(x = ret_closing_prices)) +
-  geom_histogram(bins = 90) +
-  facet_wrap(~ticker, ncol = 3)
-```
+Por outro lado, as empresas BCSA34.SA e AMZO34.SA têm p-values menores que 0.05, o que significa que há evidências suficientes para rejeitar a hipótese nula. Isso indica a presença de autocorrelação nos dados dessas empresas.
 
-Gráfico QQ - FALTA AJUSTE NO GRÁFICO
-```{r}
 
-# for (ticker in ativos) {
-#   if (dev.cur() != 1) dev.off()
-#   da %>% 
-#     filter(!is.infinite(ret_closing_prices), 
-#       !is.na(ret_closing_prices), 
-#       ticker == ticker) %>%
-#         ggplot(aes(sample = ret_closing_prices)) +
-#           geom_qq() +
-#           geom_qq_line() +
-#           labs(title = ticker)
-# }
-```
+# 2 Ajustando modelos Arch / Garch
 
-Teste Shapiro-Wilk
-```{r}
+## 2.1. BCSA34.SA
 
-shapiro.test(as.vector(da$ret_closing_prices))
+Filtrando a base e selecionando variáveis
+```{r} 
+# filtrando pela empresa Santander
+santander <- da_tsibble %>%
+  dplyr::filter(ticker == 'BCSA34.SA') %>%
+  select(ref_date, ret_closing_prices) %>%
+  arrange(ymd(ref_date))
 
-#Dúvida: Deveríamos rodar o teste para cada uma das ações?
+# Criando variável dos log retornos
+ret <- santander %>%
+  slice(-1) %>%
+  pull(ret_closing_prices)
 
-```
-
-Conclusão do Teste Shapiro-Wilk:
-* Dado que o p-value é extremamente pequeno: Rejeitamos a hipótese nula.
-Isso significa que há evidências significativas de que os dados não seguem uma distribuição normal.
-
-##### Heterocedasticidade condicional (Efeito Arch): Ljung-Box + Lagrange Multiplier
-
-Teste Ljung-Box
-```{r}
-
-#Dúvida: Deveríamos rodar o teste para cada uma das ações?
-da  <-  da |>
-  dplyr::mutate(ret2 = ret_closing_prices^2)
-
-Box.test(da$ret2, type = "Ljung-Box")
-
+#criando variáveis dos log retornos ao quadrado
+ret2 <- ret^2
 
 ```
 
-Conclusão do Teste Ljung-Box:
-* Dado que o p-value é < 2.2e-16, que é extremamente pequeno: Rejeitamos a hipótese nula. Isso significa que há evidências significativas de aucorrelação entre a os retornos ao quadrado. Portanto, há indícios da heterodasticidade condicional na série. 
-
-Teste LM (Lagrange Multiplier)
-* Dado que o  p-value <  2.2e-16, que é extremamente pequeno. Rejeitamos a hipótese nula de homoscedasticidade. Portanto, há evidências significativas de heteroscedasticidade nos seus dados.
-
-
-
-
-
-
-
+Verificando série, ACF e PACF para determinar parâmetros
 ```{r}
-library(lmtest)
-
-# Fit a linear model with squared returns
-model <- lm(ret2 ~ ., data = da)
-
-# Perform the Breusch-Pagan test
-bptest(model)
+par(mfrow=c(1,2))
+acf(ret,60,na.action = na.pass)
+acf(ret2,60,na.action = na.pass)
 ```
 
+Considerando que a série de retornos ao quadrado apresenta autocorrelação relevante até o lag 3, o modelo utilizará o parâmetro m = 3.
+
+Fit do modelo
+```{r}
+fit_arch_santander_30 = garchFit(~garch(3,0),data=ret ,trace=F)
+
+summary(fit_arch_santander_30)
+```
+
+Verificando resíduos
+```{r}
+residuos  <- residuals(fit_arch_santander_30, standardize=T)
+par(mfrow=c(1,2))
+ts.plot(residuos)
+acf(residuos)
+```
+
+O resíduo apresenta aspecto de ruído branco. Não possuo autocorrelação entre os lags, e aparenta distribuição com média 0.
+
+## teste Ljung Box para verificar que os resíduos são RB
+
+```{r}
+Box.test(residuos,lag=3,type="Ljung")
+```
+
+Uma vez que o resultado do p-valor está acima de 0.05, não rejeitamos a hipótese nula de que há autocorrelação entre os resíduos. Portanto alteraremos os parâmetros da modelagem para avaliação de melhor desempenho do modelo.
 
 
 
@@ -225,11 +232,18 @@ bptest(model)
 
 
 
-## Ajustando modelos garch
+
+
+
+
+
+
 
 Função para ajustar um garch
 
 ```{r}
+#| eval: false
+#| echo: false
 garch_individual <- function(parms, ret, prog = NULL) {
   if (!is.null(prog)) prog()
   # daria para adicionar mais hiperparametros!!!
@@ -247,25 +261,11 @@ garch_individual <- function(parms, ret, prog = NULL) {
   )
   # as vezes ele nao converge
   suppressWarnings({
-    fit <- ugarchfit(garch_model, data = ret)
+    fit <- ugarchfit(garch_model, data = da)
   })
   fit
 }
 ```
-
-Testando para um ativo
-
-```{r}
-garch_individual(
-  parms = list(
-    p = 1, q = 1, m = 1, n = 1, dist = "std"
-  ),
-  ret = da_train |>
-    dplyr::filter(ticker == "NVDC34.SA") |>
-    pull(ret_closing_prices)
-)
-```
-
 Função para ajustar uma grid de garchs e pegar as informações
 
 ```{r}
@@ -274,10 +274,23 @@ Função para ajustar uma grid de garchs e pegar as informações
 
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+
 Rodando as funções
 
 ```{r}
 #| eval: false
+#| echo: false
 melhores_por_ativo <- ativos |>
   purrr::set_names() |>
   purrr::map(melhor_garch, .progress = TRUE) |>
@@ -285,7 +298,10 @@ melhores_por_ativo <- ativos |>
 ```
 
 
+
+
 ```{r}
+#| eval: false
 #| echo: false
 melhores_por_ativo <- readr::read_rds("melhores_por_ativo.rds")
 ```
@@ -296,6 +312,8 @@ melhores_por_ativo <- readr::read_rds("melhores_por_ativo.rds")
 Função que ajusta o modelo e faz as previsões
 
 ```{r}
+#| eval: false
+#| echo: false
 prever_volatilidade <- function(parms, n_steps = 5) {
   usethis::ui_info("Prevendo volatilidade para {parms$ticker}...")
 
@@ -337,6 +355,8 @@ prever_volatilidade <- function(parms, n_steps = 5) {
 Ajustando modelos finais e prevendo volatilidade futura
 
 ```{r}
+#| eval: false
+#| echo: false
 parametros_melhores <- melhores_por_ativo |>
   group_by(ticker) |>
   slice_head(n = 1) |>
@@ -365,6 +385,8 @@ Versão em python
 <https://www.codingfinance.com/post/2018-05-31-portfolio-opt-in-python/>
 
 ```{r}
+#| eval: false
+#| echo: false
 da_wide <- da_train |>
   dplyr::select(ref_date, name = ticker, value = ret_closing_prices) |>
   tidyr::pivot_wider()
@@ -375,6 +397,8 @@ da_xts <- da_wide |>
 
 
 ```{r}
+#| eval: false
+#| echo: false
 mean_ret <- colMeans(da_xts, na.rm = TRUE)
 print(round(mean_ret, 5))
 ```
@@ -382,6 +406,8 @@ print(round(mean_ret, 5))
 Next we will calculate the covariance matrix for all these stocks. We will NOT annualize it by multiplying by 252.
 
 ```{r}
+#| eval: false
+#| echo: false
 cov_mat <- cov(da_xts, use = "complete.obs")
 print(round(cov_mat,6))
 ```
@@ -396,6 +422,8 @@ To calculate the portfolio returns and risk (standard deviation) we will us need
 - Random weights
 
 ```{r}
+#| eval: false
+#| echo: false
 set.seed(2)
 # Calculate the random weights
 wts <- runif(n = length(ativos))
@@ -418,6 +446,10 @@ We have everything we need to perform our optimization. All we need now is to ru
 ~Before we do that, we need to create empty vectors and matrix for storing our values.~
 
 ```{r}
+#| eval: false
+#| echo: false
+
+
 
 sim_returns <- function(i) {
   wts <- runif(length(ativos))
@@ -448,7 +480,8 @@ max_sr <- portfolio_values[which.max(portfolio_values$sharpe),]
 Lets plot the weights of each portfolio. First with the minimum variance portfolio.
 
 ```{r}
-
+#| eval: false
+#| echo: false
 min_var |>
   pivot_longer(2:6) |>
   mutate(name = forcats::fct_reorder(name, value)) |>
@@ -464,6 +497,8 @@ min_var |>
 ```
 
 ```{r}
+#| eval: false
+#| echo: false
 max_sr |>
   pivot_longer(2:6) |>
   mutate(name = forcats::fct_reorder(name, value)) |>
@@ -478,6 +513,8 @@ max_sr |>
 ```
 
 ```{r}
+#| eval: false
+#| echo: false
 portfolio_values |>
   ggplot(aes(x = risk, y = return, color = sharpe)) +
   geom_point() +
@@ -506,6 +543,8 @@ portfolio_values |>
 ## VaR do portfolio
 
 ```{r}
+#| eval: false
+#| echo: false
 pesos_finais <- min_var |>
   dplyr::select(2:6) |>
   as.numeric()
@@ -522,6 +561,8 @@ valor_t <- qt(.95, nu)
 ## CAPM
 
 ```{r}
+#| eval: false
+#| echo: false
 portfolio_returns <- da_train |>
   tidyquant::tq_portfolio(
     ticker,
@@ -562,6 +603,8 @@ beta_geral
 ```
 
 ```{r}
+#| eval: false
+#| echo: false
 
 capm_lm_tudo <- lm(portfolio ~ ibov, data = all_returns) |>
   broom::tidy() |>
