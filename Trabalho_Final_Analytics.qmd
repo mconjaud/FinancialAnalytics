@@ -8,10 +8,10 @@ execute:
   freeze: true
 ---
 
-## Selecionando Livrarias
+# Bibliotecas
 
 ```{r}
-
+#| output: false
 library(ggplot2)
 library(fpp3)
 library(rugarch)
@@ -20,12 +20,13 @@ library(yfR)
 library(zoo)
 library(xts)
 library(lubridate)
+library(patchwork)
 
 ```
 
 ## Pré Procesamento 
 Seleção das Ações/Ativos e data de ínicio da série 
-Escolhemos ínicio de 2022 para escpar dos impactos da pandemia 
+Escolhemos ínicio de 2022 para escapar dos impactos da pandemia 
 
 ```{r}
 
@@ -64,10 +65,10 @@ da_tsibble <- da |>
 
 ## 1. Plotar gráficos de preço e retorno e analisar possível heterocedasticidade condicional:
 
-Gráfico de preço
+#### Gráfico de preço
 
 ```{r}
-quarter_label <- functio(x) {
+quarter_label <- function(x) {
   paste0(year(x), "Q", quarter(x))
 }
 
@@ -78,7 +79,7 @@ da_tsibble |>
   
 ```
 
-Gráfico de retorno
+#### Gráfico de retorno
 
 ```{r}
 
@@ -93,7 +94,7 @@ da_tsibble |>
 
 ```
 
-ACF/PACF dos retornos
+#### ACF/PACF dos retornos
 
 ```{r}
 da_tsibble |>
@@ -106,8 +107,8 @@ da_tsibble |>
 da_tsibble |>
   PACF(ret_closing_prices) |>
   autoplot()
-
 ```
+
 
 visualizar os retornos ao quadrado
 
@@ -135,7 +136,7 @@ da_tsibble |>
 ```
 
 
-# Normalidade: Histograma + Gráfico QQ + teste Shapiro-Wilk
+#### Normalidade: Histograma + Gráfico QQ + teste Shapiro-Wilk
 
 Histograma 
 ```{r}
@@ -146,22 +147,20 @@ da |>
   facet_wrap(~ticker, ncol = 3)
 ```
 
-Gráfico QQ
+Gráfico QQ - FALTA AJUSTE NO GRÁFICO
 ```{r}
-da |>
-  group_by(ticker) |>
-  summarise(
-    gg = list(
-      ggplot(pick(everything()), aes(sample = ret_closing_prices)) +
-        geom_qq() +
-        geom_qq_line() +
-        labs(title = cur_group())
-      )
-  ) |>
-  dplyr::pull(gg) |>
-  patchwork::wrap_plots()
 
-# Gráfico não quis ajudar 
+# for (ticker in ativos) {
+#   if (dev.cur() != 1) dev.off()
+#   da %>% 
+#     filter(!is.infinite(ret_closing_prices), 
+#       !is.na(ret_closing_prices), 
+#       ticker == ticker) %>%
+#         ggplot(aes(sample = ret_closing_prices)) +
+#           geom_qq() +
+#           geom_qq_line() +
+#           labs(title = ticker)
+# }
 ```
 
 Teste Shapiro-Wilk
@@ -177,22 +176,41 @@ Conclusão do Teste Shapiro-Wilk:
 * Dado que o p-value é extremamente pequeno: Rejeitamos a hipótese nula.
 Isso significa que há evidências significativas de que os dados não seguem uma distribuição normal.
 
-# Heterocedasticidade condicional (Efeito Arch): Ljung-Box + Lagrange Multiplier
+##### Heterocedasticidade condicional (Efeito Arch): Ljung-Box + Lagrange Multiplier
 
 Teste Ljung-Box
 ```{r}
-Box.test(da$price_adjusted, type = "Ljung-Box")
 
 #Dúvida: Deveríamos rodar o teste para cada uma das ações?
+da  <-  da |>
+  dplyr::mutate(ret2 = ret_closing_prices^2)
+
+Box.test(da$ret2, type = "Ljung-Box")
+
 
 ```
 
 Conclusão do Teste Ljung-Box:
-* Dado que o p-value é < 2.2e-16, que é extremamente pequeno: Rejeitamos a hipótese nula. Isso significa que há evidências significativas de autocorrelação na série temporal 
+* Dado que o p-value é < 2.2e-16, que é extremamente pequeno: Rejeitamos a hipótese nula. Isso significa que há evidências significativas de aucorrelação entre a os retornos ao quadrado. Portanto, há indícios da heterodasticidade condicional na série. 
 
 Teste LM (Lagrange Multiplier)
+* Dado que o  p-value <  2.2e-16, que é extremamente pequeno. Rejeitamos a hipótese nula de homoscedasticidade. Portanto, há evidências significativas de heteroscedasticidade nos seus dados.
 
 
+
+
+
+
+
+```{r}
+library(lmtest)
+
+# Fit a linear model with squared returns
+model <- lm(ret2 ~ ., data = da)
+
+# Perform the Breusch-Pagan test
+bptest(model)
+```
 
 
 
