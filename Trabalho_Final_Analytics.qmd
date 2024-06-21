@@ -173,10 +173,10 @@ Por outro lado, as empresas BCSA34.SA e AMZO34.SA têm p-values menores que 0.05
 Filtrando a base e selecionando variáveis
 ```{r} 
 # filtrando pela empresa Santander
-santander <- da_tsibble %>%
-  dplyr::filter(ticker == 'BCSA34.SA') %>%
-  select(ref_date, ret_closing_prices) %>%
-  arrange(ymd(ref_date))
+  santander <- da_tsibble %>%
+    dplyr::filter(ticker == 'BCSA34.SA') %>%
+    select(ref_date, ret_closing_prices) %>%
+    arrange(ymd(ref_date))
 
 # Criando variável dos log retornos
 ret <- santander %>%
