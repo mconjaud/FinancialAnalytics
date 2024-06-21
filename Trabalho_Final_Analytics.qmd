@@ -1,20 +1,30 @@
 ---
-title: "Trabalho Final Finalcial analytics"
+title: "Financial Analytics - Trabalho Final"
 authors:
-  - name: Michel
-  - name: Hélio
-  - name: Renan
-  - name: Tiago
+  - name: Michel Maurice Conjaud
+  - name: Hélio Pereira Oliveira
+  - name: Renan Cabral
+  - name: Tiago Evangelista Pardo
 format:
   html:
     code-fold: true
+    embed-resources: true
+    smooth-scroll: true
+    theme: cerulean
+    toc: true
+    toc-expand: true
+    toc-title: "Sumário"
+    toc_float: true
+
 execute:
   freeze: true
   warning: false
+  cache: true
 ---
 
-# Bibliotecas
+# 0. Bibliotecas e Importação de Dados
 
+Bibliotecas
 ```{r}
 #| output: false
 library(ggplot2)
@@ -28,15 +38,13 @@ library(lubridate)
 library(patchwork)
 library(lmtest)
 library(fGarch)
+library(xts)
 ```
 
-## Pré Procesamento 
-Seleção das Ações/Ativos e data de ínicio da série 
-Escolhemos ínicio de 2022 para escapar dos impactos da pandemia 
-
+Seleção das Ações/Ativos e definição da data de início: 01/01/2019
 ```{r}
 
-start_date <- '2021-06-01'
+start_date <- '2019-01-01'
 
 ativos <- c(
   "NVDC34.SA",
@@ -69,11 +77,11 @@ View(da_tsibble)
 
 ```
 
-## 1. Plotar gráficos de preço e retorno e analisar possível heterocedasticidade condicional:
+# 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
-## 1.1 Gráfico de preços e dos log retornos
+## 1.1. Gráfico de preços e dos log retornos
 
-### Preços
+### 1.1.1. Preços
 ```{r}
 #Função para formatar legenda
 quarter_label <- function(x) {
@@ -92,7 +100,7 @@ da_tsibble |>
   theme(plot.title = element_text(hjust = 0.5))
 ```  
 
-### Log Retornos
+### 1.1.2. Log Retornos
 ```{r}
 #criando gráfico da série de retornos
 da_tsibble |>
@@ -104,9 +112,9 @@ da_tsibble |>
 
 ```
 
-## 1.2 Analisando possível heterodasticidade condicional
+## 1.2 Analisando possível heterocedasticidade condicional
 
-Faremos a transformação da variável de retorno em retorno quadrático, que será a proxi da volatividade dos retornos.
+Criação do log retorno ao quadrado (proxi da volatilidade)
 
 ```{r}
 da_tsibble |>
@@ -115,11 +123,13 @@ da_tsibble |>
   facet_wrap(~ticker, ncol = 1)
 ```
 
-Com a proxi da volatividade, verificaremos a existência de heterodasticidade condicional através dos seguintes métodos:
+**Verificando a existência de heterodasticidade condicional através dos seguintes métodos:**
 
-1.2.1. ACF dos retornos quadráticos
+* 1.2.1. ACF dos retornos quadráticos
 
-1.2.2. Teste Ljung-Box dos retornos quadráticos
+* 1.2.2. Teste Ljung-Box dos retornos quadráticos
+
+* 1.2.3. Teste Langrange Multiplier
 
 ### 1.2.1. ACF dos retornos ao quadrado
 
@@ -130,15 +140,18 @@ da_tsibble  <-  da_tsibble |>
 ```
 
 ```{r}
+#ACF dos retornos ao quadrado
 da_tsibble |>
   ACF(ret2) |>
   autoplot()
 ```
 
-### 1.2.2. Testes Ljung-Box
+**INSERIR CONCLUSÃO AQUI** 
+
+### 1.2.2. Teste Ljung-Box
 ```{r}
 
-resultados <- data.frame(empresa = character(), p_value = numeric())
+resultados <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
 for (empresa in ativos) {
   # Filtrar o dataframe para a empresa atual
@@ -149,81 +162,178 @@ for (empresa in ativos) {
   
   # Adicionar o resultado ao dataframe de resultados
   resultados <- rbind(resultados, 
-                               data.frame(empresa = empresa, 
-                                          p_value = box_test_result$p.value 
+                               data.frame(Empresa = empresa, 
+                                          "P-Valor" = box_test_result$p.value 
                                           ))
 }
 
 print(resultados)
 ```
 
-Conclusões:
+* Não rejeita a hipótese nula: NVDC34.SA
 
-ACF:
+* Rejeitam a hipótese nula: BCSA34.SA, RENT3.SA, PRIO3.SA e TASA4.SA, AMZO34.SA
 
-As empresas NVDC34.SA, RENT3.SA, PRIO3.SA e TASA4.SA têm p-values maiores que 0.05, indicando que não há evidências suficientes para rejeitar a hipótese nula de que os dados são independentemente distribuídos. Isso sugere que não há autocorrelação nos dados dessas empresas.
+### 1.2.3. Teste Lagrange Multiplier
+```{r}
+library(FinTS)
 
-Por outro lado, as empresas BCSA34.SA e AMZO34.SA têm p-values menores que 0.05, o que significa que há evidências suficientes para rejeitar a hipótese nula. Isso indica a presença de autocorrelação nos dados dessas empresas.
+resultados_ml <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
+for (empresa in ativos) {
+  # Filtrar o dataframe para a empresa atual
+  da_tsibble_filtered <- da_tsibble |> filter(ticker == empresa)
 
-# 2 Ajustando modelos Arch / Garch
+  teste_ml <- ArchTest(da_tsibble_filtered$ret_closing_prices)
+
+  # Adicionar o resultado ao dataframe de resultados
+  resultados_ml <- rbind(resultados_ml, 
+                               data.frame(Empresa = empresa, 
+                                          "P-Valor" = teste_ml$p.value 
+                                          ))
+}
+
+print(resultados_ml)
+```
+
+* Não rejeita a hipótese nula: NVDC34.SA
+
+* Rejeitam a hipótese nula: BCSA34.SA, AMZO34.SA, RENT3.SA, PRIO3.SA, e TASA4.SA
+
+# 2. Ajustando modelos Arch / Garch
 
 ## 2.1. BCSA34.SA
 
-Filtrando a base e selecionando variáveis
+### 2.1.1. Filtrando a base e selecionando variáveis
 ```{r} 
 # filtrando pela empresa Santander
 santander <- da_tsibble %>%
-  dplyr::filter(ticker == 'BCSA34.SA') %>%
-  select(ref_date, ret_closing_prices) %>%
-  arrange(ymd(ref_date))
-
-# Criando variável dos log retornos
-ret <- santander %>%
-  slice(-1) %>%
-  pull(ret_closing_prices)
-
-#criando variáveis dos log retornos ao quadrado
-ret2 <- ret^2
+  subset(ticker=='BCSA34.SA') %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(santander[,-1],order.by = ymd(santander$ref_date))[-1,]
+ret2 = ret**2
+plot(ret2)
 
 ```
 
-Verificando série, ACF e PACF para determinar parâmetros
+### 2.1.2. Análises da série
+
+#### 2.1.2.1. Autocorrelação dos retornos e volatilidade
 ```{r}
 par(mfrow=c(1,2))
 acf(ret,60,na.action = na.pass)
 acf(ret2,60,na.action = na.pass)
 ```
 
-Considerando que a série de retornos ao quadrado apresenta autocorrelação relevante até o lag 3, o modelo utilizará o parâmetro m = 3.
+**Interpretação**
 
-Fit do modelo
+* A série de retornos apresenta alguns lags de autocorrelação ligeiramente fora do intervalo de confiança. É possível que o modelo se beneficie de inserção de parâmetros p e q.
+* A série de retornos ao quadrado apresenta autocorrelação relevante até o lag 7. Portanto, utilizaremos o modelo Arch 7 além de realizar looping dos das combinações dos parâmetros de 1 a 3 para m e n.
+
+#### 2.1.2.2. Normalidade: Shapiro teste e gráficos
 ```{r}
-fit_arch_santander_30 = garchFit(~garch(3,0),data=ret ,trace=F)
+shapiro.test(as.vector(ret))
+```
+**Interpretação**
 
-summary(fit_arch_santander_30)
+* O teste Shapiro Wilk informa que a série não possui distribuição normal
+
+```{r}
+par(mfrow=c(1,2))
+h <- hist(ret, breaks=20, col="red", xlab="", 
+          main="Histogram") 
+xfit <- seq(min(ret),max(ret),length=40) 
+yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) 
+yfit <- yfit*diff(h$mids[1:2])*length(ret) 
+lines(xfit, yfit, col="blue", lwd=2)
+
+
+qqnorm(ret, pch = 1, frame = FALSE)
+qqline(ret, col = "steelblue", lwd = 2)
+```
+**Interpretação**
+* Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
+
+### 2.1.2. Fit do modelo
+
+looping de parâmetros com distribuição de erros T-Student e normal
+
+```{r}
+# Lista para comparação de modelos
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+# Loop pelos parâmetros de tipo de distribuição e m e n
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                               include.mean = TRUE, cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
+  }
+}
+
+# Formatando resultados para melhor visualização 
+resultados_tidy <- list()
+
+for (nome_modelo in names(ics_modelos_garch)) {
+  valores <- ics_modelos_garch[[nome_modelo]]
+  df <- data.frame(
+    AIC = valores["AIC"],
+    BIC = valores["BIC"]
+  )
+    resultados_tidy[[nome_modelo]] <- df
+}
+
+resultados_tidy_df <- do.call(rbind, resultados_tidy)
+
+print(resultados_tidy_df)
+
 ```
 
-Verificando resíduos
+### 2.1.3. Avaliação do melhor modelo
+
+Análise detalhada do melhor modelo pelos critérios de informação: garch_1_1_std
 ```{r}
-residuos  <- residuals(fit_arch_santander_30, standardize=T)
+summary(modelos_garch$garch_1_1_std)
+```
+
+**Interpretação**
+
+* Significância em todos os níveis em todos os estimadores do modelo
+*  Os testes Ljung-Box e LM Arch Test não rejeitam a hipótese nula de homocedasticidade dos resíduos, o que indica uma boa modelagem.
+
+### 2.1.4. Verificação dos resíduos
+```{r}
+residuos  <- residuals(modelos_garch$garch_1_1_std, standardize=T)
 par(mfrow=c(1,2))
 ts.plot(residuos)
 acf(residuos)
 ```
 
-O resíduo apresenta aspecto de ruído branco. Não possuo autocorrelação entre os lags, e aparenta distribuição com média 0.
-
-## teste Ljung Box para verificar que os resíduos são RB
+### 2.1.5. Análise dos retornos e volatilidade 
 
 ```{r}
-Box.test(residuos,lag=3,type="Ljung")
+par(mfrow=c(2,1))
+plot(ret)
+sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
+colnames(sigma) <- c("Volatilidade")
+plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
-Uma vez que o resultado do p-valor está acima de 0.05, não rejeitamos a hipótese nula de que há autocorrelação entre os resíduos. Portanto alteraremos os parâmetros da modelagem para avaliação de melhor desempenho do modelo.
-
-
-
+INSERIR CONCLUSÃO AQUI
 
 
 
