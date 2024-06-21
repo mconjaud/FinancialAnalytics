@@ -55,11 +55,11 @@ da <- yfR::yf_get(
   do_complete_data = TRUE
 )
 
-View(da)
-
 da_tsibble <- da |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
-  
+
+View(da_tsibble)
+
 ```
 
 ## 1. Plotar gráficos de preço e retorno e analisar possível heterocedasticidade condicional:
@@ -67,7 +67,7 @@ da_tsibble <- da |>
 Gráfico de preço
 
 ```{r}
-quarter_label <- functio(x) {
+quarter_label <- function(x) {
   paste0(year(x), "Q", quarter(x))
 }
 
