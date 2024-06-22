@@ -17,3 +17,7 @@ patchwork
 lmtest
 fGarch
 FinTS
+PerformanceAnalytics
+TTR
+quantmod
+tidyquant
