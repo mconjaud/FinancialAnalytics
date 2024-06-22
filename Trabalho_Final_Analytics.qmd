@@ -47,7 +47,6 @@ Seleção das Ações/Ativos e definição da data de início: 01/01/2019
 
 start_date <- '2019-01-01'
 
-
 ativos <- c(
   "NVDC34.SA",
   "BCSA34.SA", 
@@ -58,10 +57,9 @@ ativos <- c(
 )
 ```
 
-Selecionando ações e transformando dataframe em tsbible 
+Selecionando as ações
 
 ```{r}
-#| output: false
 da <- yfR::yf_get(
   ativos,
   first_date = start_date,
@@ -71,13 +69,44 @@ da <- yfR::yf_get(
   freq_data = "daily",
   do_complete_data = TRUE
 )
+view(da)
 
-da_tsibble <- da |>
+```
+
+Data mínima comum a todas as séries
+
+```{r}
+# Capturando menor data da base 
+data_corte <- da |>
+  dplyr::group_by(ticker) |>
+  dplyr::filter(ref_date == min(ref_date)) |>
+  dplyr::ungroup() |>
+  with(max(ref_date))
+
+data_corte
+```
+
+```{r}
+# Df com data mínima
+da_train <- da |>
+  dplyr::filter(ref_date > data_corte) 
+
+view(da_train)  
+```
+
+
+Transformando dataframe em tsbible 
+
+```{r}
+#| output: false
+
+da_tsibble <- da_train |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
 
 View(da_tsibble)
 
 ```
+
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
