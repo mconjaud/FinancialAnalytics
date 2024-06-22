@@ -99,9 +99,9 @@ quarter_label <- function(x) {
 da_tsibble |>
   autoplot(price_adjusted, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1)+
-  scale_x_date(date_breaks = "3 months", label=quarter_label) +
+  scale_x_date(date_breaks = "4 months", label=quarter_label) +
   labs ( title = "Série de Preço", y = "Preço", x = "Data") +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.1))
 ```  
 
 
@@ -112,7 +112,7 @@ da_tsibble |>
 da_tsibble |>
   autoplot(ret_adjusted_prices, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1) +
-  scale_x_date(date_breaks = "3 months", labels = quarter_label) +
+  scale_x_date(date_breaks = "4 months", labels = quarter_label) +
   labs ( title = "Série de Log Retornos", y = "Log Retornos", x = "Data") +
   theme(plot.title = element_text(hjust = 0.5))
 
@@ -159,7 +159,6 @@ da_tsibble |>
 
 ### 1.2.2. Teste Ljung-Box
 ```{r}
-
 
 resultados <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
