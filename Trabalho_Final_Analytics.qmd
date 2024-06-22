@@ -38,6 +38,7 @@ library(lubridate)
 library(patchwork)
 library(lmtest)
 library(fGarch)
+
 library(xts)
 ```
 
@@ -45,6 +46,7 @@ Seleção das Ações/Ativos e definição da data de início: 01/01/2019
 ```{r}
 
 start_date <- '2019-01-01'
+
 
 ativos <- c(
   "NVDC34.SA",
@@ -79,9 +81,11 @@ View(da_tsibble)
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
+
 ## 1.1. Gráfico de preços e dos log retornos
 
 ### 1.1.1. Preços
+
 ```{r}
 #Função para formatar legenda
 quarter_label <- function(x) {
@@ -100,7 +104,9 @@ da_tsibble |>
   theme(plot.title = element_text(hjust = 0.5))
 ```  
 
+
 ### 1.1.2. Log Retornos
+
 ```{r}
 #criando gráfico da série de retornos
 da_tsibble |>
@@ -116,11 +122,13 @@ da_tsibble |>
 
 Criação do log retorno ao quadrado (proxi da volatilidade)
 
+
 ```{r}
 da_tsibble |>
   dplyr::mutate(ret2 = ret_closing_prices^2) |>
   autoplot(ret2, colour = "black") +
   facet_wrap(~ticker, ncol = 1)
+
 ```
 
 **Verificando a existência de heterodasticidade condicional através dos seguintes métodos:**
@@ -148,8 +156,10 @@ da_tsibble |>
 
 **INSERIR CONCLUSÃO AQUI** 
 
+
 ### 1.2.2. Teste Ljung-Box
 ```{r}
+
 
 resultados <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
@@ -233,10 +243,12 @@ acf(ret2,60,na.action = na.pass)
 #### 2.1.2.2. Normalidade: Shapiro teste e gráficos
 ```{r}
 shapiro.test(as.vector(ret))
+
 ```
 **Interpretação**
 
 * O teste Shapiro Wilk informa que a série não possui distribuição normal
+
 
 ```{r}
 par(mfrow=c(1,2))
@@ -250,6 +262,7 @@ lines(xfit, yfit, col="blue", lwd=2)
 
 qqnorm(ret, pch = 1, frame = FALSE)
 qqline(ret, col = "steelblue", lwd = 2)
+
 ```
 **Interpretação**
 * Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
@@ -257,6 +270,7 @@ qqline(ret, col = "steelblue", lwd = 2)
 ### 2.1.2. Fit do modelo
 
 looping de parâmetros com distribuição de erros T-Student e normal
+
 
 ```{r}
 # Lista para comparação de modelos
@@ -334,6 +348,7 @@ plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
 INSERIR CONCLUSÃO AQUI
+
 
 
 
