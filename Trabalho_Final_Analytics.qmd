@@ -154,7 +154,7 @@ da_tsibble |>
   autoplot()
 ```
 
-**INSERIR CONCLUSÃO AQUI** 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR CONCLUSÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 ### 1.2.2. Teste Ljung-Box
@@ -212,7 +212,7 @@ print(resultados_ml)
 
 # 2. Ajustando modelos Arch / Garch
 
-## 2.1. BCSA34.SA
+## 2.1. Santander
 
 ### 2.1.1. Filtrando a base e selecionando variáveis
 ```{r} 
@@ -245,6 +245,7 @@ acf(ret2,60,na.action = na.pass)
 shapiro.test(as.vector(ret))
 
 ```
+
 **Interpretação**
 
 * O teste Shapiro Wilk informa que a série não possui distribuição normal
@@ -265,6 +266,7 @@ qqline(ret, col = "steelblue", lwd = 2)
 
 ```
 **Interpretação**
+
 * Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
 
 ### 2.1.2. Fit do modelo
@@ -347,410 +349,788 @@ colnames(sigma) <- c("Volatilidade")
 plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
-INSERIR CONCLUSÃO AQUI
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!INSERIR CONCLUSÃO AQUI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Função para ajustar um garch
-
+### 2.1.6. Previsão
+Realizando previsão
 ```{r}
-#| eval: false
-#| echo: false
-garch_individual <- function(parms, ret, prog = NULL) {
-  if (!is.null(prog)) prog()
-  # daria para adicionar mais hiperparametros!!!
-  garch_model = ugarchspec(
-    variance.model = list(
-      model = "fGARCH",
-      submodel = "GARCH",
-      garchOrder = c(parms$m, parms$n)
-    ),
-    mean.model = list(
-      armaOrder = c(parms$p, parms$q),
-      include.mean = TRUE
-    ),
-    distribution.model = parms$dist
-  )
-  # as vezes ele nao converge
-  suppressWarnings({
-    fit <- ugarchfit(garch_model, data = da)
-  })
-  fit
-}
+forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
+forecast
 ```
-Função para ajustar uma grid de garchs e pegar as informações
 
+Salvando resultado em tabela
 ```{r}
+# Criação inicial do data frame vazio
+comparacao_forecast <- data.frame(Empresa = character(), meanForecast = double(), meanError = double(), standardDeviation = double())
 
-### OMITIDO
-
+# Adicionando os resultados da previsão para a "Amazon" ao data frame
+comparacao_forecast <- rbind(comparacao_forecast, 
+                             data.frame(Empresa = "Santander",
+                                        meanForecast = forecast$meanForecast,
+                                        meanError = forecast$meanError,
+                                        standardDeviation = forecast$standardDeviation))
 ```
 
 
+## 2.2. AMZO34.SA
 
+### 2.2.1. Filtrando a base e selecionando variáveis
+```{r} 
+# filtrando pela empresa Nvidia
+amazon <- da_tsibble %>%
+  subset(ticker=='AMZO34.SA') %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(amazon[,-1],order.by = ymd(amazon$ref_date))[-1,]
+ret2 = ret**2
+plot(ret2)
 
-
-
-
-
-
-
-
-
-
-Rodando as funções
-
-```{r}
-#| eval: false
-#| echo: false
-melhores_por_ativo <- ativos |>
-  purrr::set_names() |>
-  purrr::map(melhor_garch, .progress = TRUE) |>
-  dplyr::bind_rows(.id = "ticker")
 ```
 
+### 2.2.2. Análises da série
 
-
-
+#### 2.2.2.1. Autocorrelação dos retornos e volatilidade
 ```{r}
-#| eval: false
-#| echo: false
-melhores_por_ativo <- readr::read_rds("melhores_por_ativo.rds")
+par(mfrow=c(1,2))
+acf(ret,60,na.action = na.pass)
+acf(ret2,60,na.action = na.pass)
 ```
 
+**Interpretação**
 
-## Prever volatilidade um passo à frente
+#### 2.2.2.2. Normalidade: Shapiro teste e gráficos
+```{r}
+shapiro.test(as.vector(ret))
+```
 
-Função que ajusta o modelo e faz as previsões
+**Interpretação**
+
+* O teste Shapiro Wilk informa que a série não possui distribuição normal
 
 ```{r}
-#| eval: false
-#| echo: false
-prever_volatilidade <- function(parms, n_steps = 5) {
-  usethis::ui_info("Prevendo volatilidade para {parms$ticker}...")
+par(mfrow=c(1,2))
+h <- hist(ret, breaks=20, col="red", xlab="", 
+          main="Histogram") 
+xfit <- seq(min(ret),max(ret),length=40) 
+yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) 
+yfit <- yfit*diff(h$mids[1:2])*length(ret) 
+lines(xfit, yfit, col="blue", lwd=2)
 
-  ret <- da_train |>
-    dplyr::filter(ticker == parms$ticker) |>
-    pull(ret_closing_prices)
 
-  garch_model = ugarchspec(
-    variance.model = list(
-      model = "fGARCH",
-      submodel = "GARCH",
-      garchOrder = c(parms$m, parms$n)
-    ),
-    mean.model = list(
-      armaOrder = c(parms$p, parms$q),
-      include.mean = TRUE
-    ),
-    distribution.model = parms$dist
-  )
+qqnorm(ret, pch = 1, frame = FALSE)
+qqline(ret, col = "steelblue", lwd = 2)
+```
+**Interpretação**
 
-  fit <- ugarchfit(garch_model, data = ret, out.sample = n_steps - 1)
+* Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
 
-  if (parms$dist == "std") {
-    shape <- as.numeric(fit@fit$coef["shape"])
-  } else {
-    shape <- NA_real_
+### 2.2.2. Fit do modelo
+
+looping de parâmetros com distribuição de erros T-Student e normal
+
+```{r}
+# Lista para comparação de modelos
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+# Loop pelos parâmetros de tipo de distribuição e m e n
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                               include.mean = TRUE, cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
   }
-
-  forecasts <- ugarchforecast(fit, n.ahead = n_steps)@forecast
-  tibble::tibble(
-    ticker = parms$ticker,
-    serie = as.numeric(forecasts$seriesFor),
-    volatilidade = as.numeric(forecasts$sigmaFor),
-    shape = shape
-  )
-}
-```
-
-Ajustando modelos finais e prevendo volatilidade futura
-
-```{r}
-#| eval: false
-#| echo: false
-parametros_melhores <- melhores_por_ativo |>
-  group_by(ticker) |>
-  slice_head(n = 1) |>
-  ungroup()
-
-vol_futuro <- parametros_melhores |>
-  group_split(ticker) |>
-  purrr::map(\(x) prever_volatilidade(x, n_steps = 5)) |>
-  dplyr::bind_rows()
-
-vol_futuro
-```
-
-## Comparar volatilidades entre os retornos selecionados
-
-...
-
-## Montagem de portfolio
-
-Reproduzindo código daqui:
-
-<https://www.codingfinance.com/post/2018-05-31-portfolio-opt-in-r/>
-
-Versão em python
-
-<https://www.codingfinance.com/post/2018-05-31-portfolio-opt-in-python/>
-
-```{r}
-#| eval: false
-#| echo: false
-da_wide <- da_train |>
-  dplyr::select(ref_date, name = ticker, value = ret_closing_prices) |>
-  tidyr::pivot_wider()
-
-da_xts <- da_wide |>
-  timetk::tk_xts(select = -ref_date, date_var = ref_date)
-```
-
-
-```{r}
-#| eval: false
-#| echo: false
-mean_ret <- colMeans(da_xts, na.rm = TRUE)
-print(round(mean_ret, 5))
-```
-
-Next we will calculate the covariance matrix for all these stocks. We will NOT annualize it by multiplying by 252.
-
-```{r}
-#| eval: false
-#| echo: false
-cov_mat <- cov(da_xts, use = "complete.obs")
-print(round(cov_mat,6))
-```
-
-Before we apply our methods to thousands of random portfolio, let us demonstrate the steps on a single portfolio.
-
-To calculate the portfolio returns and risk (standard deviation) we will us need
-
-- Mean assets returns
-- Portfolio weights
-- Covariance matrix of all assets
-- Random weights
-
-```{r}
-#| eval: false
-#| echo: false
-set.seed(2)
-# Calculate the random weights
-wts <- runif(n = length(ativos))
-
-(wts <- wts/sum(wts))
-
-# Calculate the portfolio returns
-(port_returns <- sum(wts * mean_ret))
-
-# Calculate the portfolio risk
-(port_risk <- sqrt(t(wts) %*% (cov_mat %*% wts)))
-
-# Calculate the Sharpe Ratio
-(sharpe_ratio <- port_returns/port_risk)
-```
-
-We have everything we need to perform our optimization. All we need now is to run this code on 5000 random portfolios. For that we will use a for loop.
-
-
-~Before we do that, we need to create empty vectors and matrix for storing our values.~
-
-```{r}
-#| eval: false
-#| echo: false
-
-
-
-sim_returns <- function(i) {
-  wts <- runif(length(ativos))
-  wts <- wts / sum(wts)
-  port_ret <- sum(wts * mean_ret)
-  port_sd <- as.numeric(sqrt(t(wts) %*% (cov_mat %*% wts)))
-  sr <- port_ret / port_sd
-
-  wts |>
-    purrr::set_names(ativos) |>
-    tibble::enframe() |>
-    tidyr::pivot_wider() |>
-    dplyr::mutate(
-      return = port_ret,
-      risk = port_sd,
-      sharpe = sr
-    )
 }
 
-portfolio_values <- purrr::map(1:5000, sim_returns, .progress = TRUE) |>
-  bind_rows(.id = "run")
+# Formatando resultados para melhor visualização 
+resultados_tidy <- list()
 
-min_var <- portfolio_values[which.min(portfolio_values$risk),]
-max_sr <- portfolio_values[which.max(portfolio_values$sharpe),]
-
-```
-
-Lets plot the weights of each portfolio. First with the minimum variance portfolio.
-
-```{r}
-#| eval: false
-#| echo: false
-min_var |>
-  pivot_longer(2:6) |>
-  mutate(name = forcats::fct_reorder(name, value)) |>
-  ggplot(aes(name, value)) +
-  geom_col() +
-  scale_y_continuous(labels = scales::percent) +
-  labs(
-    x = "Asset",
-    y = "Weight",
-    title = "Minimum variance portfolio weights"
+for (nome_modelo in names(ics_modelos_garch)) {
+  valores <- ics_modelos_garch[[nome_modelo]]
+  df <- data.frame(
+    AIC = valores["AIC"],
+    BIC = valores["BIC"]
   )
-
-```
-
-```{r}
-#| eval: false
-#| echo: false
-max_sr |>
-  pivot_longer(2:6) |>
-  mutate(name = forcats::fct_reorder(name, value)) |>
-  ggplot(aes(name, value)) +
-  geom_col() +
-  scale_y_continuous(labels = scales::percent) +
-  labs(
-    x = "Asset",
-    y = "Weight",
-    title = "Tangency portfolio weights"
-  )
-```
-
-```{r}
-#| eval: false
-#| echo: false
-portfolio_values |>
-  ggplot(aes(x = risk, y = return, color = sharpe)) +
-  geom_point() +
-  theme_classic() +
-  scale_y_continuous(labels = scales::percent) +
-  scale_x_continuous(labels = scales::percent) +
-  labs(
-    x = 'Risk',
-    y = 'Returns',
-    title = "Portfolio Optimization & Efficient Frontier"
-  ) +
-  geom_point(
-    aes(x = risk, y = return),
-    data = min_var,
-    color = 'red',
-    size = 3
-  ) +
-  geom_point(
-    aes(x = risk, y = return),
-    data = max_sr,
-    color = 'orange',
-    size = 3
-  )
-```
-
-## VaR do portfolio
-
-```{r}
-#| eval: false
-#| echo: false
-pesos_finais <- min_var |>
-  dplyr::select(2:6) |>
-  as.numeric()
-
-
-rt_final <- mean(vol_futuro$serie * pesos_finais)
-st_dev_final <- sqrt(pesos_finais %*% cov_mat %*% pesos_finais)
-nu <- min(vol_futuro$shape)
-valor_t <- qt(.95, nu)
-
-(VaR <- rt_final + valor_t * st_dev_final / sqrt(nu/(nu-2)))
-```
-
-## CAPM
-
-```{r}
-#| eval: false
-#| echo: false
-portfolio_returns <- da_train |>
-  tidyquant::tq_portfolio(
-    ticker,
-    ret_closing_prices,
-    weights = pesos_finais,
-    col_rename = "portfolio"
-  )
-
-market_returns <- yfR::yf_get(
-  "^BVSP",
-  first_date = data_corte + 1,
-  type_return = "log",
-  freq_data = "daily",
-  do_complete_data = TRUE
-) |>
-  dplyr::select(ref_date, ibov = ret_closing_prices)
-
-all_returns <- market_returns |>
-  dplyr::inner_join(portfolio_returns, "ref_date") |>
-  tidyr::drop_na()
-
-(beta_geral <- with(all_returns, cov(portfolio, ibov) / var(ibov)))
-
-calcular_beta <- function(ativo) {
-  da_train |>
-    dplyr::filter(ticker == ativo) |>
-    dplyr::inner_join(market_returns, "ref_date") |>
-    tidyr::drop_na() |>
-    with(cov(ret_closing_prices, ibov) / var(ibov))
+    resultados_tidy[[nome_modelo]] <- df
 }
 
-betas <- purrr::map_dbl(ativos, calcular_beta) |>
-  purrr::set_names(ativos)
+resultados_tidy_df <- do.call(rbind, resultados_tidy)
 
-sum(betas * pesos_finais)
-beta_geral
+print(resultados_tidy_df)
 
 ```
+
+### 2.2.3. Avaliação do melhor modelo
+
+Análise detalhada do melhor modelo pelos critérios de informação: garch_1_1_std
+```{r}
+summary(modelos_garch$garch_1_1_std)
+```
+
+**Interpretação**
+
+* Significância em todos os níveis em todos os estimadores do modelo
+*  Os testes Ljung-Box e LM Arch Test não rejeitam a hipótese nula de homocedasticidade dos resíduos, o que indica uma boa modelagem.
+
+### 2.2.4. Verificação dos resíduos
+```{r}
+residuos  <- residuals(modelos_garch$garch_1_1_std, standardize=T)
+par(mfrow=c(1,2))
+ts.plot(residuos)
+acf(residuos)
+```
+
+### 2.2.5. Análise dos retornos e volatilidade 
 
 ```{r}
-#| eval: false
-#| echo: false
-
-capm_lm_tudo <- lm(portfolio ~ ibov, data = all_returns) |>
-  broom::tidy() |>
-  dplyr::filter(term == "ibov") |>
-  with(estimate)
-
-capm_lm_individual <- purrr::map_dbl(ativos, \(ativo) {
-  da_model <- da_train |>
-    dplyr::filter(ticker == ativo) |>
-    dplyr::inner_join(market_returns, "ref_date")
-  lm(ret_closing_prices ~ ibov, data = da_model) |>
-    broom::tidy() |>
-    dplyr::filter(term == "ibov") |>
-    dplyr::pull(estimate)
-}) |>
-  purrr::set_names(ativos)
-
-
-capm_lm_tudo
-
-capm_lm_individual
+par(mfrow=c(2,1))
+plot(ret)
+sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
+colnames(sigma) <- c("Volatilidade")
+plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
+
+
+### 2.2.6. Previsão
+Realizando previsão
+```{r}
+forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
+forecast
+```
+
+Salvando resultado em tabela
+```{r}
+# Adicionando os resultados da previsão para a "Amazon" ao data frame
+comparacao_forecast <- rbind(comparacao_forecast, 
+                             data.frame(Empresa = "Amazon",
+                                        meanForecast = forecast$meanForecast,
+                                        meanError = forecast$meanError,
+                                        standardDeviation = forecast$standardDeviation))
+```
+
+## 2.3. Localiza
+
+### 2.3.1. Filtrando a base e selecionando variáveis
+```{r} 
+# filtrando pela empresa Nvidia
+localiza <- da_tsibble %>%
+  subset(ticker=='RENT3.SA') %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(localiza[,-1],order.by = ymd(localiza$ref_date))[-1,]
+ret2 = ret**2
+plot(ret2)
+
+```
+
+### 2.3.2. Análises da série
+
+#### 2.3.2.1. Autocorrelação dos retornos e volatilidade
+```{r}
+par(mfrow=c(1,2))
+acf(ret,60,na.action = na.pass)
+acf(ret2,60,na.action = na.pass)
+```
+
+**Interpretação**
+
+* A série de retornos apresenta alguns lags de autocorrelação ligeiramente fora do intervalo de confiança. É possível que o modelo se beneficie de inserção de parâmetros p e q.
+* A série de retornos ao quadrado apresenta autocorrelação relevante até o lag 7. Portanto, utilizaremos o modelo Arch 7 além de realizar looping dos das combinações dos parâmetros de 1 a 3 para m e n.
+
+#### 2.3.2.2. Normalidade: Shapiro teste e gráficos
+```{r}
+shapiro.test(as.vector(ret))
+```
+
+**Interpretação**
+
+* O teste Shapiro Wilk informa que a série não possui distribuição normal
+
+```{r}
+par(mfrow=c(1,2))
+h <- hist(ret, breaks=20, col="red", xlab="", 
+          main="Histogram") 
+xfit <- seq(min(ret),max(ret),length=40) 
+yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) 
+yfit <- yfit*diff(h$mids[1:2])*length(ret) 
+lines(xfit, yfit, col="blue", lwd=2)
+
+
+qqnorm(ret, pch = 1, frame = FALSE)
+qqline(ret, col = "steelblue", lwd = 2)
+```
+**Interpretação**
+
+* Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
+
+### 2.3.2. Fit do modelo
+
+looping de parâmetros com distribuição de erros T-Student e normal
+
+```{r}
+# Lista para comparação de modelos
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+# Loop pelos parâmetros de tipo de distribuição e m e n
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                               include.mean = TRUE, cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
+  }
+}
+
+# Formatando resultados para melhor visualização 
+resultados_tidy <- list()
+
+for (nome_modelo in names(ics_modelos_garch)) {
+  valores <- ics_modelos_garch[[nome_modelo]]
+  df <- data.frame(
+    AIC = valores["AIC"],
+    BIC = valores["BIC"]
+  )
+    resultados_tidy[[nome_modelo]] <- df
+}
+
+resultados_tidy_df <- do.call(rbind, resultados_tidy)
+
+print(resultados_tidy_df)
+
+```
+
+### 2.3.3. Avaliação do melhor modelo
+
+Análise detalhada do melhor modelo pelos critérios de informação: garch_1_1_std
+```{r}
+summary(modelos_garch$garch_1_1_std)
+```
+
+**Interpretação**
+
+* Significância em todos os níveis em todos os estimadores do modelo
+*  Os testes Ljung-Box e LM Arch Test não rejeitam a hipótese nula de homocedasticidade dos resíduos, o que indica uma boa modelagem.
+
+### 2.3.4. Verificação dos resíduos
+```{r}
+residuos  <- residuals(modelos_garch$garch_1_1_std, standardize=T)
+par(mfrow=c(1,2))
+ts.plot(residuos)
+acf(residuos)
+```
+
+### 2.3.5. Análise dos retornos e volatilidade 
+
+```{r}
+par(mfrow=c(2,1))
+plot(ret)
+sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
+colnames(sigma) <- c("Volatilidade")
+plot(sigma,auto.legend=T,legend.loc = "top",main='')
+```
+
+
+### 2.3.6. Previsão
+Realizando previsão
+```{r}
+forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
+forecast
+```
+
+Salvando resultado em tabela
+```{r}
+# Adicionando os resultados da previsão para a "Localiza" ao data frame
+comparacao_forecast <- rbind(comparacao_forecast, 
+                             data.frame(Empresa = "Localiza",
+                                        meanForecast = forecast$meanForecast,
+                                        meanError = forecast$meanError,
+                                        standardDeviation = forecast$standardDeviation))
+```
+
+## 2.4. Prio
+
+### 2.4.1. Filtrando a base e selecionando variáveis
+```{r} 
+# filtrando pela empresa Nvidia
+prio <- da_tsibble %>%
+  subset(ticker=='PRIO3.SA') %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(prio[,-1],order.by = ymd(prio$ref_date))[-1,]
+ret2 = ret**2
+plot(ret2)
+
+```
+
+### 2.4.2. Análises da série
+
+#### 2.4.2.1. Autocorrelação dos retornos e volatilidade
+```{r}
+par(mfrow=c(1,2))
+acf(ret,60,na.action = na.pass)
+acf(ret2,60,na.action = na.pass)
+```
+
+**Interpretação**
+
+* A série de retornos apresenta alguns lags de autocorrelação ligeiramente fora do intervalo de confiança. É possível que o modelo se beneficie de inserção de parâmetros p e q.
+* A série de retornos ao quadrado apresenta autocorrelação relevante até o lag 7. Portanto, utilizaremos o modelo Arch 7 além de realizar looping dos das combinações dos parâmetros de 1 a 3 para m e n.
+
+#### 2.4.2.2. Normalidade: Shapiro teste e gráficos
+```{r}
+shapiro.test(as.vector(ret))
+```
+
+**Interpretação**
+
+* O teste Shapiro Wilk informa que a série não possui distribuição normal
+
+```{r}
+par(mfrow=c(1,2))
+h <- hist(ret, breaks=20, col="red", xlab="", 
+          main="Histogram") 
+xfit <- seq(min(ret),max(ret),length=40) 
+yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) 
+yfit <- yfit*diff(h$mids[1:2])*length(ret) 
+lines(xfit, yfit, col="blue", lwd=2)
+
+
+qqnorm(ret, pch = 1, frame = FALSE)
+qqline(ret, col = "steelblue", lwd = 2)
+```
+**Interpretação**
+
+* Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
+
+### 2.4.2. Fit do modelo
+
+looping de parâmetros com distribuição de erros T-Student e normal
+
+```{r}
+# Lista para comparação de modelos
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+# Loop pelos parâmetros de tipo de distribuição e m e n
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                               include.mean = TRUE, cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
+  }
+}
+
+# Formatando resultados para melhor visualização 
+resultados_tidy <- list()
+
+for (nome_modelo in names(ics_modelos_garch)) {
+  valores <- ics_modelos_garch[[nome_modelo]]
+  df <- data.frame(
+    AIC = valores["AIC"],
+    BIC = valores["BIC"]
+  )
+    resultados_tidy[[nome_modelo]] <- df
+}
+
+resultados_tidy_df <- do.call(rbind, resultados_tidy)
+
+print(resultados_tidy_df)
+
+```
+
+### 2.4.3. Avaliação do melhor modelo
+
+Análise detalhada do melhor modelo pelos critérios de informação: garch_1_1_std
+```{r}
+summary(modelos_garch$garch_1_1_std)
+```
+
+**Interpretação**
+
+* Significância em todos os níveis em todos os estimadores do modelo
+*  Os testes Ljung-Box e LM Arch Test não rejeitam a hipótese nula de homocedasticidade dos resíduos, o que indica uma boa modelagem.
+
+### 2.4.4. Verificação dos resíduos
+```{r}
+residuos  <- residuals(modelos_garch$garch_1_1_std, standardize=T)
+par(mfrow=c(1,2))
+ts.plot(residuos)
+acf(residuos)
+```
+
+### 2.4.5. Análise dos retornos e volatilidade 
+
+```{r}
+par(mfrow=c(2,1))
+plot(ret)
+sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
+colnames(sigma) <- c("Volatilidade")
+plot(sigma,auto.legend=T,legend.loc = "top",main='')
+```
+
+
+### 2.4.6. Previsão
+Realizando previsão
+```{r}
+forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
+forecast
+```
+
+Salvando resultado em tabela
+```{r}
+# Adicionando os resultados da previsão para a "Amazon" ao data frame
+comparacao_forecast <- rbind(comparacao_forecast, 
+                             data.frame(Empresa = "Prio",
+                                        meanForecast = forecast$meanForecast,
+                                        meanError = forecast$meanError,
+                                        standardDeviation = forecast$standardDeviation))
+```
+
+## 2.5. Taurus
+
+### 2.5.1. Filtrando a base e selecionando variáveis
+```{r} 
+# filtrando pela empresa Nvidia
+taurus <- da_tsibble %>%
+  subset(ticker=='TASA4.SA') %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(taurus[,-1],order.by = ymd(taurus$ref_date))[-1,]
+ret2 = ret**2
+plot(ret2)
+
+```
+
+### 2.5.2. Análises da série
+
+#### 2.5.2.1. Autocorrelação dos retornos e volatilidade
+```{r}
+par(mfrow=c(1,2))
+acf(ret,60,na.action = na.pass)
+acf(ret2,60,na.action = na.pass)
+```
+
+**Interpretação**
+
+* A série de retornos apresenta alguns lags de autocorrelação ligeiramente fora do intervalo de confiança. É possível que o modelo se beneficie de inserção de parâmetros p e q.
+* A série de retornos ao quadrado apresenta autocorrelação relevante até o lag 7. Portanto, utilizaremos o modelo Arch 7 além de realizar looping dos das combinações dos parâmetros de 1 a 3 para m e n.
+
+#### 2.5.2.2. Normalidade: Shapiro teste e gráficos
+```{r}
+shapiro.test(as.vector(ret))
+```
+
+**Interpretação**
+
+* O teste Shapiro Wilk informa que a série não possui distribuição normal
+
+```{r}
+par(mfrow=c(1,2))
+h <- hist(ret, breaks=20, col="red", xlab="", 
+          main="Histogram") 
+xfit <- seq(min(ret),max(ret),length=40) 
+yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) 
+yfit <- yfit*diff(h$mids[1:2])*length(ret) 
+lines(xfit, yfit, col="blue", lwd=2)
+
+
+qqnorm(ret, pch = 1, frame = FALSE)
+qqline(ret, col = "steelblue", lwd = 2)
+```
+**Interpretação**
+
+* Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
+
+### 2.5.2. Fit do modelo
+
+looping de parâmetros com distribuição de erros T-Student e normal
+
+```{r}
+# Lista para comparação de modelos
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+# Loop pelos parâmetros de tipo de distribuição e m e n
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                               include.mean = TRUE, cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
+  }
+}
+
+# Formatando resultados para melhor visualização 
+resultados_tidy <- list()
+
+for (nome_modelo in names(ics_modelos_garch)) {
+  valores <- ics_modelos_garch[[nome_modelo]]
+  df <- data.frame(
+    AIC = valores["AIC"],
+    BIC = valores["BIC"]
+  )
+    resultados_tidy[[nome_modelo]] <- df
+}
+
+resultados_tidy_df <- do.call(rbind, resultados_tidy)
+
+print(resultados_tidy_df)
+
+```
+
+### 2.5.3. Avaliação do melhor modelo
+
+Análise detalhada do melhor modelo pelos critérios de informação: garch_1_1_std
+```{r}
+summary(modelos_garch$garch_1_1_std)
+```
+
+**Interpretação**
+
+* Significância em todos os níveis em todos os estimadores do modelo
+*  Os testes Ljung-Box e LM Arch Test não rejeitam a hipótese nula de homocedasticidade dos resíduos, o que indica uma boa modelagem.
+
+### 2.5.4. Verificação dos resíduos
+```{r}
+residuos  <- residuals(modelos_garch$garch_1_1_std, standardize=T)
+par(mfrow=c(1,2))
+ts.plot(residuos)
+acf(residuos)
+```
+
+### 2.5.5. Análise dos retornos e volatilidade 
+
+```{r}
+par(mfrow=c(2,1))
+plot(ret)
+sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
+colnames(sigma) <- c("Volatilidade")
+plot(sigma,auto.legend=T,legend.loc = "top",main='')
+```
+
+### 2.5.6. Previsão
+Realizando previsão
+```{r}
+forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
+forecast
+```
+
+Salvando resultado em tabela
+```{r}
+# Adicionando os resultados da previsão para a "Amazon" ao data frame
+comparacao_forecast <- rbind(comparacao_forecast, 
+                             data.frame(Empresa = "Taurus",
+                                        meanForecast = forecast$meanForecast,
+                                        meanError = forecast$meanError,
+                                        standardDeviation = forecast$standardDeviation))
+```
+
+## 2.6. NVDC34.SA
+
+### 2.6.1. Filtrando a base e selecionando variáveis
+```{r} 
+# filtrando pela empresa Nvidia
+nvidia <- da_tsibble %>%
+  subset(ticker=='NVDC34.SA') %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(nvidia[,-1],order.by = ymd(nvidia$ref_date))[-1,]
+ret2 = ret**2
+plot(ret2)
+
+```
+
+### 2.6.2. Análises da série
+
+#### 2.6.2.1. Autocorrelação dos retornos e volatilidade
+```{r}
+par(mfrow=c(1,2))
+acf(ret,60,na.action = na.pass)
+acf(ret2,60,na.action = na.pass)
+```
+
+**Interpretação**
+
+* A série de retornos apresenta alguns lags de autocorrelação ligeiramente fora do intervalo de confiança. É possível que o modelo se beneficie de inserção de parâmetros p e q.
+* A série de retornos ao quadrado apresenta autocorrelação relevante até o lag 7. Portanto, utilizaremos o modelo Arch 7 além de realizar looping dos das combinações dos parâmetros de 1 a 3 para m e n.
+
+#### 2.6.2.2. Normalidade: Shapiro teste e gráficos
+```{r}
+shapiro.test(as.vector(ret))
+```
+
+**Interpretação**
+
+* O teste Shapiro Wilk informa que a série não possui distribuição normal
+
+```{r}
+par(mfrow=c(1,2))
+h <- hist(ret, breaks=20, col="red", xlab="", 
+          main="Histogram") 
+xfit <- seq(min(ret),max(ret),length=40) 
+yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) 
+yfit <- yfit*diff(h$mids[1:2])*length(ret) 
+lines(xfit, yfit, col="blue", lwd=2)
+
+
+qqnorm(ret, pch = 1, frame = FALSE)
+qqline(ret, col = "steelblue", lwd = 2)
+```
+
+**Interpretação**
+
+* Os gráficos permitem que visualizemos que a distribuição não é normal, apresentando "caudas pesadas" características de séries desta natureza. Isso sugere que parâmetros de distribuição não normais devem ter melhor desempenho.
+
+### 2.6.2. Fit do modelo
+
+looping de parâmetros com distribuição de erros T-Student e normal
+
+```{r}
+# Lista para comparação de modelos
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+# Loop pelos parâmetros de tipo de distribuição e m e n
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                               include.mean = TRUE, cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
+  }
+}
+
+# Formatando resultados para melhor visualização 
+resultados_tidy <- list()
+
+for (nome_modelo in names(ics_modelos_garch)) {
+  valores <- ics_modelos_garch[[nome_modelo]]
+  df <- data.frame(
+    AIC = valores["AIC"],
+    BIC = valores["BIC"]
+  )
+    resultados_tidy[[nome_modelo]] <- df
+}
+
+resultados_tidy_df <- do.call(rbind, resultados_tidy)
+
+print(resultados_tidy_df)
+
+```
+
+### 2.6.3. Avaliação do melhor modelo
+
+Análise detalhada do melhor modelo pelos critérios de informação: garch_1_1_std
+```{r}
+summary(modelos_garch$garch_1_1_std)
+```
+
+**Interpretação**
+
+* Significância em todos os níveis em todos os estimadores do modelo
+*  Os testes Ljung-Box e LM Arch Test não rejeitam a hipótese nula de homocedasticidade dos resíduos, o que indica uma boa modelagem.
+
+### 2.6.4. Verificação dos resíduos
+```{r}
+residuos  <- residuals(modelos_garch$garch_1_1_std, standardize=T)
+par(mfrow=c(1,2))
+ts.plot(residuos)
+acf(residuos)
+```
+
+### 2.6.5. Análise dos retornos e volatilidade 
+
+```{r}
+par(mfrow=c(2,1))
+plot(ret)
+sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
+colnames(sigma) <- c("Volatilidade")
+plot(sigma,auto.legend=T,legend.loc = "top",main='')
+```
+
+
+### 2.6.6. Previsão
+Realizando previsão
+```{r}
+forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
+forecast
+```
+
+Salvando resultado em tabela
+```{r}
+# Adicionando os resultados da previsão para a "Amazon" ao data frame
+comparacao_forecast <- rbind(comparacao_forecast, 
+                             data.frame(Empresa = "Nvidia",
+                                        meanForecast = forecast$meanForecast,
+                                        meanError = forecast$meanError,
+                                        standardDeviation = forecast$standardDeviation))
+```
+
+
+# 3. Comparação de Volatilidades
+```{r}
+comparacao_forecast
+```
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR INTERPRETAÇÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
