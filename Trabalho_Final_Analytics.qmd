@@ -38,6 +38,7 @@ library(lubridate)
 library(patchwork)
 library(lmtest)
 library(fGarch)
+
 library(xts)
 ```
 
@@ -45,6 +46,7 @@ Seleção das Ações/Ativos e definição da data de início: 01/01/2019
 ```{r}
 
 start_date <- '2019-01-01'
+
 
 ativos <- c(
   "NVDC34.SA",
@@ -72,14 +74,18 @@ da <- yfR::yf_get(
 
 da_tsibble <- da |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
-  
+
+View(da_tsibble)
+
 ```
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
+
 ## 1.1. Gráfico de preços e dos log retornos
 
 ### 1.1.1. Preços
+
 ```{r}
 #Função para formatar legenda
 quarter_label <- function(x) {
@@ -98,7 +104,9 @@ da_tsibble |>
   theme(plot.title = element_text(hjust = 0.5))
 ```  
 
+
 ### 1.1.2. Log Retornos
+
 ```{r}
 #criando gráfico da série de retornos
 da_tsibble |>
@@ -114,11 +122,13 @@ da_tsibble |>
 
 Criação do log retorno ao quadrado (proxi da volatilidade)
 
+
 ```{r}
 da_tsibble |>
   dplyr::mutate(ret2 = ret_closing_prices^2) |>
   autoplot(ret2, colour = "black") +
   facet_wrap(~ticker, ncol = 1)
+
 ```
 
 **Verificando a existência de heterodasticidade condicional através dos seguintes métodos:**
@@ -146,8 +156,10 @@ da_tsibble |>
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR CONCLUSÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+
 ### 1.2.2. Teste Ljung-Box
 ```{r}
+
 
 resultados <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
@@ -231,11 +243,13 @@ acf(ret2,60,na.action = na.pass)
 #### 2.1.2.2. Normalidade: Shapiro teste e gráficos
 ```{r}
 shapiro.test(as.vector(ret))
+
 ```
 
 **Interpretação**
 
 * O teste Shapiro Wilk informa que a série não possui distribuição normal
+
 
 ```{r}
 par(mfrow=c(1,2))
@@ -249,6 +263,7 @@ lines(xfit, yfit, col="blue", lwd=2)
 
 qqnorm(ret, pch = 1, frame = FALSE)
 qqline(ret, col = "steelblue", lwd = 2)
+
 ```
 **Interpretação**
 
@@ -257,6 +272,7 @@ qqline(ret, col = "steelblue", lwd = 2)
 ### 2.1.2. Fit do modelo
 
 looping de parâmetros com distribuição de erros T-Student e normal
+
 
 ```{r}
 # Lista para comparação de modelos
@@ -381,9 +397,6 @@ acf(ret2,60,na.action = na.pass)
 ```
 
 **Interpretação**
-
-* A série de retornos apresenta alguns lags de autocorrelação ligeiramente fora do intervalo de confiança. É possível que o modelo se beneficie de inserção de parâmetros p e q.
-* A série de retornos ao quadrado apresenta autocorrelação relevante até o lag 7. Portanto, utilizaremos o modelo Arch 7 além de realizar looping dos das combinações dos parâmetros de 1 a 3 para m e n.
 
 #### 2.2.2.2. Normalidade: Shapiro teste e gráficos
 ```{r}
