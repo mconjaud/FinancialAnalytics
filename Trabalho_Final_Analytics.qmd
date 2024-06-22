@@ -336,7 +336,7 @@ plot(sigma,auto.legend=T,legend.loc = "top",main='')
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!INSERIR CONCLUSÃO AQUI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-## 2.1.6. Previsão
+### 2.1.6. Previsão
 Realizando previsão
 ```{r}
 forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
@@ -491,7 +491,7 @@ plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
 
-## 2.2.6. Previsão
+### 2.2.6. Previsão
 Realizando previsão
 ```{r}
 forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
@@ -642,7 +642,7 @@ plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
 
-## 2.3.6. Previsão
+### 2.3.6. Previsão
 Realizando previsão
 ```{r}
 forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
@@ -793,7 +793,7 @@ plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
 
-## 2.4.6. Previsão
+### 2.4.6. Previsão
 Realizando previsão
 ```{r}
 forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
@@ -943,7 +943,7 @@ colnames(sigma) <- c("Volatilidade")
 plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
-## 2.5.6. Previsão
+### 2.5.6. Previsão
 Realizando previsão
 ```{r}
 forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
@@ -1095,7 +1095,7 @@ plot(sigma,auto.legend=T,legend.loc = "top",main='')
 ```
 
 
-## 2.6.6. Previsão
+### 2.6.6. Previsão
 Realizando previsão
 ```{r}
 forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
