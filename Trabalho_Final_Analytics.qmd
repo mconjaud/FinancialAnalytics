@@ -183,7 +183,12 @@ da_tsibble |>
   autoplot()
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR CONCLUSÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+**Interpretação**
+* AMZO3, BCSA3, PRIO3 e RENT3 mostram autocorrelações significativas nos primeiros lags, indicando que a volatilidade desses retornos pode ser dependente no tempo. 
+
+* NVCD, por outro lado, não apresenta uma dependência temporal forte, sugerindo ausência de heterocedasticidade significativa. 
+
+* TASA4 tem algumas autocorrelações significativas, mas menos pronunciadas em comparação com as outras séries.
 
 
 ### 1.2.2. Teste Ljung-Box
@@ -344,6 +349,14 @@ for (nome_modelo in names(ics_modelos_garch)) {
 resultados_tidy_df <- do.call(rbind, resultados_tidy)
 
 print(resultados_tidy_df)
+
+view(resultados_tidy_df)
+
+```
+
+```{r}
+
+
 
 ```
 
