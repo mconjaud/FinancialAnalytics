@@ -41,6 +41,8 @@ library(fGarch)
 library(xts)
 library(FinTS)
 library(tidyquant)
+library(plotly)
+library(timetk)
 ```
 
 
@@ -61,15 +63,17 @@ ativos <- c(
 
 # Importando base da API do Yahoo
 da <- yfR::yf_get(
-  ativos,
-  first_date = data_inicio,
-  last_date = Sys.Date(),
-  bench_ticker = "^BVSP",
-  type_return = "log",
-  freq_data = "daily",
-  do_complete_data = TRUE
-)
-
+    ativos,
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "log",
+    freq_data = "daily",
+    do_complete_data = TRUE
+)    %>% 
+    select( ticker, ref_date, price_adjusted, ret_closing_prices )
+ 
+        
 # Capturando menor data da base 
 data_corte <- da |>
   dplyr::group_by(ticker) |>
@@ -168,7 +172,7 @@ da_tsibble  <-  da_tsibble |>
 ```{r}
 #| fig-width: 7
 #| fig-height: 10
-#| 
+
 #ACF dos retornos ao quadrado
 da_tsibble |>
   ACF(ret2) |>
@@ -275,7 +279,7 @@ ret2 = ret**2
   }
 } 
 
-resultados_tidy_df <- do.call(rbind, resultados_tidy)%>% 
+resultados_tidy_df <- do.call(rbind, resultados_tidy) %>% 
   rownames_to_column()  %>% 
     separate(rowname, c("Modelo", "m", "n", "dist", "ticker"),
     sep = "_")  %>% 
@@ -324,9 +328,42 @@ str(residuos)
 #                                         standardDeviation = forecast$standardDeviation))
 ```
 
+```{r}
+
+model_names <- c(
+  "garch_1_2_std_AMZO34.SA",
+  "garch_1_1_std_BCSA34.SA",
+  "garch_1_1_std_PRIO3.SA",
+  "garch_1_1_std_NVDC34.SA",
+  "garch_1_1_std_TASA4.SA",
+  "garch_1_1_std_BCSA34.SA"
+)
+titles <- c(
+  "Volatilidade AMZO34.SA",
+  "Volatilidade BCSA34.SA",
+  "Volatilidade PRIO3.SA",
+  "Volatilidade NVDC34.SA",
+  "Volatilidade TASA4.SA",
+  "Volatilidade BCSA34.SA"
+)
+
+par(mfrow = c(6, 1)) 
+
+sigma  <-  list()
+for (i in 1:length(model_names)) {
+  model_name <- model_names[i]
+  title <- titles[i]
+  
+  model <- modelos_garch[[model_name]]
+  sigma <- cbind(model@sigma.t) 
+  
+  print(plot(model@sigma.t, main = title))
+  }
+```
+
 # 4. Portfólio
 
-## 4.1. Retorno, Risco e Ratio
+## 4.1. Retorno ponderado, Risco e Ratio
 
 ```{r}
 
@@ -336,21 +373,23 @@ pesos  <- c(0.10, 0.20, 0.20, 0.10, 0.20, 0.20) %>%
 portfolio  <- da_tsibble  %>% 
                 select(ticker, ret_closing_prices)
 
-retornos_portfolio <- portfolio |>
+retorno_ponderado_portfolio <- portfolio |>
   ungroup() %>% 
   as_tibble() %>% 
   tidyquant::tq_portfolio(
     ticker,
     ret_closing_prices,
     weights = pesos,
-    col_rename = "Retornos"
+    col_rename = "retornos"
   )
 
-paste0("Média dos retornos do portfólio: ", round(mean(retornos_portfolio$Retornos),7))
+media_retornos  <-  round(mean(retorno_ponderado_portfolio$retornos),7)
+
+paste0("Média dos retornos do portfólio: ", media_retornos)
 
 ```
 
-## 4.2. Modelagem Garch
+## 4.2. Modelagem Garch do Portfolio
 ```{r}
 modelos_garch_portfolio <- list()
 ics_modelos_garch_portfolio  <- list()
@@ -392,8 +431,7 @@ for (distribuicao in distribuicao_erro) {
 
 resultados_tidy_df_portfolio <- do.call(rbind, resultados_tidy_portfolio)%>% 
   rownames_to_column()  %>% 
-    # separate(rowname, c("Modelo", "m", "n", "dist"),
-    # sep = "_")  %>% 
+
     arrange(AIC)  %>% 
     slice(1)
 
@@ -407,5 +445,133 @@ forecast <- predict(modelos_garch_portfolio$garch_1_1_std, n.ahead = 1)
 forecast
 ```
 
+# 5. CAPM Portfólio
 
-# Otimizar o retorno portfólio 
+Bases de retornos do mercado (Ibovespa)
+```{r}
+#| output: false
+
+retornos_mercado_log  <- yfR::yf_get(
+    '^BVSP',
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "log",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    )  %>% 
+    select(ref_date, ret_closing_prices)  %>%
+    filter(ref_date > data_corte)  %>%  
+    na.omit()  %>% 
+    distinct(ref_date, .keep_all = TRUE)
+
+
+retornos_mercado_arit  <- yfR::yf_get(
+    '^BVSP',
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "arit",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    )  %>% 
+    select(ref_date, ret_closing_prices)  %>%
+    filter(ref_date > data_corte)  %>%  
+    na.omit()  %>% 
+    distinct(ref_date, .keep_all = TRUE)
+
+
+retornos_carteira_arit <- yfR::yf_get(
+    ativos,
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "arit",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    ) %>% 
+    select( ref_date, ret_closing_prices )  %>% 
+    na.omit()
+
+```
+
+## Betas individuais por ativo  
+```{r}
+betas <- list() # Inicializa a lista para armazenar os betas
+
+for (empresa in ativos) {
+  # Filtra o dataframe para a empresa atual no loop
+  da_tsibble_filtrado <- da_tsibble %>% 
+    filter(ticker == empresa)
+  
+  # Calcula o modelo linear
+  modelo_lm <- lm(ret_closing_prices ~ retornos_mercado_log$ret_closing_prices, data = da_tsibble_filtrado)
+  
+  # Extrai o coeficiente beta e armazena na lista
+  betas[[empresa]] <- coef(modelo_lm)["retornos_mercado_log$ret_closing_prices"]
+}
+
+# transforma a lista de betas em um dataframe ou tibble
+betas_df <- tibble(empresa = names(betas), beta = unlist(betas))
+
+print(betas_df)
+```
+
+##  ARRUMAR AQUI DEVE ESTAR ERRADO Retorno ponderado do Portfólio
+```{r}
+betas_ponderados <- betas_df$beta * pesos[betas_df$empresa]
+somatorio_betas_ponderados <- sum(betas_ponderados)
+somatorio_betas_ponderados
+```
+
+## Retornos
+```{r}
+retorno_anual_carteira  <- mean(retornos_carteira_arit$ret_closing_prices)*252
+retorno_anual_mercado <- mean(retornos_mercado_arit$ret_closing_prices)*252
+selic  <- 0.105
+retorno_esperado_carteira  <- selic + (retorno_anual_mercado - selic)*somatorio_ponderado_betas
+
+print(paste0("Considerando taxa Selic de 10,5%, retorno anual do mercado (Ibovespa) de 6%, o retorno mínimo esperado da carteira é de ", round(retorno_esperado_carteira,2)*100,"%" ))
+```
+
+# Otimização da carteira
+```{r}
+
+
+# formatando para wide e transformando em formato objeto xts
+portfolio_wide_xts  <-  portfolio %>% 
+  spread(ticker, value = ret_closing_prices)  %>% 
+    tk_xts()
+# Retirando coluna de data
+portfolio_wide_xts <- portfolio_wide_xts[,-7]
+# Convertendo colunas para numéricas
+portfolio_wide_xts <- apply(portfolio_wide_xts, 2, as.numeric)
+
+numero_simulacoes_portfolio = 5000
+
+todos_os_pesos  <- 
+```
+
+### Matriz covariância
+```{r}
+cov_mat <- cov(portfolio_wide_xts) * 252
+print(round(cov_mat,4))
+```
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR INTERPRETAÇÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+### Media de retornos
+```{r}
+media_retornos  <- colMeans(portfolio_wide_xts)
+media_retornos
+``` 
+
+### Risco (Desvio Padrão)
+```{r}
+risco_portfolio  <- sqrt(t(pesos) %*% (cov_mat %*% pesos))
+```
+
+### Sharpe ratio
+```{r}
+sharpe_ratio  <- media_retornos / risco_portfolio
+```
