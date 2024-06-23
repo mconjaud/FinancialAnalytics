@@ -1,0 +1,10 @@
+"0",""
+"0","# Trazendo todas as empresas"
+"0","tickers <- da_tsibble %>%"
+"0","  select(ref_date,ret_closing_prices)"
+"0",""
+"0","ret <- xts(tickers[,-1],order.by = ymd(tickers$ref_date))[-1,]"
+"0","ret2 = ret**2"
+"2","Error in `^.default`(ret, 2) : 
+  argumento não-numérico para operador binário
+"

@@ -1,0 +1,3 @@
+"0","# Gerando variável dos retornos quadráticos"
+"0","da_tsibble  <-  da_tsibble |>"
+"0","  dplyr::mutate(ret2 = ret_closing_prices^2)"

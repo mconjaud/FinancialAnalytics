@@ -1,0 +1,7 @@
+"0","#ACF dos retornos ao quadrado"
+"0","da_tsibble |>"
+"0","  ACF(ret2) |>"
+"0","  autoplot()"
+"2","Aviso:"
+"2"," Provided data has an irregular interval, results should be treated with caution. Computing ACF by observation.
+"

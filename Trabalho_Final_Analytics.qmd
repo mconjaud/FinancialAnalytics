@@ -48,9 +48,7 @@ Seleção das Ações/Ativos e definição da data de início: 01/01/2019
 ```{r}
 #| output: false
 
- main
 data_inicio <- '2019-01-01'
- main
 
 ativos <- c(
   "NVDC34.SA",
@@ -60,11 +58,10 @@ ativos <- c(
   "PRIO3.SA",
   "TASA4.SA"
 )
- main
+
 
 # Importando base da API do Yahoo
 
- main
 da <- yfR::yf_get(
   ativos,
   first_date = data_inicio,
@@ -96,7 +93,7 @@ data_corte
 da_train <- da |>
   dplyr::filter(ref_date > data_corte) 
 
- main
+
 # Capturando menor data da base 
 data_corte <- da |>
   dplyr::group_by(ticker) |>
@@ -115,11 +112,7 @@ da_tsibble <- da_train |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
 ```
 
-main
 
-
-
- main
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
@@ -144,12 +137,12 @@ da_tsibble |>
   facet_wrap(~ticker, scales = "free_y", ncol = 1)+
   scale_x_date(date_breaks = "4 months", label=quarter_label) +
   labs ( title = "Série de Preço", y = "Preço", x = "Data") +
- main
+ 
   theme(
     plot.title = element_text(hjust = .5),
     axis.text.x = element_text(hjust = 1, angle = 45)
   )
- main
+ 
 ```  
 
 ## 1.2. Log Retornos
@@ -211,7 +204,18 @@ da_tsibble |>
   autoplot()
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR CONCLUSÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+## Conclusões Gerais
+
+::: {.callout-note}
+### Dependência de Curto Prazo
+Ações como AMZO34.SA e TASA4.SA mostram autocorrelação significativa de curto prazo que diminui rapidamente, indicando uma dependência temporal de curta duração nos retornos.
+
+### Dependência Persistente
+Ações como PRIO3.SA e RENT3.SA exibem autocorrelação mais persistente, sugerindo uma dependência temporal mais forte que pode se estender por períodos mais longos.
+
+### Dependência Mínima
+NVDC34.SA mostra autocorrelação mínima, sugerindo que seus retornos se comportam quase como ruído branco, com pouca ou nenhuma dependência temporal.
+:::
 
 ### 1.2.2. Teste Ljung-Box
 ```{r}

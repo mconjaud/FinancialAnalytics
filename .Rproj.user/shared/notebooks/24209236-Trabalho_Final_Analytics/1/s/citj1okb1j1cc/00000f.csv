@@ -1,0 +1,81 @@
+"0","da <- yfR::yf_get("
+"0","  ativos,"
+"0","  first_date = start_date,"
+"0","  last_date = Sys.Date(),"
+"0","  bench_ticker = ""^BVSP"","
+"0","  type_return = ""log"","
+"0","  freq_data = ""daily"","
+"0","  do_complete_data = TRUE"
+"0",")"
+"1","
+"
+"1","── [1m[1mRunning yfR for [1m6[1m stocks | [1m2019-01-01[1m --> [1m2024-06-22[1m ([1m1999[1m days)[1m[22m ──
+"
+"1","
+"
+"1","[36mℹ[39m Downloading data for benchmark ticker ^BVSP
+"
+"1","[36mℹ[39m (1/6) Fetching data for AMZO34.SA
+"
+"1","[32m✔[39m 	- found cache file (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 1360 valid rows (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 100% of valid prices -- Good job !
+"
+"1","[36mℹ[39m (2/6) Fetching data for BCSA34.SA
+"
+"1","[32m✔[39m 	- found cache file (2019-11-01 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 1150 valid rows (2019-11-01 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 85% of valid prices -- All OK!
+"
+"1","[36mℹ[39m (3/6) Fetching data for NVDC34.SA
+"
+"1","[32m✔[39m 	- found cache file (2019-05-13 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 1272 valid rows (2019-05-13 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 94% of valid prices -- Good stuff!
+"
+"1","[36mℹ[39m (4/6) Fetching data for PRIO3.SA
+"
+"1","[32m✔[39m 	- found cache file (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 1360 valid rows (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 100% of valid prices -- Nice!
+"
+"1","[36mℹ[39m (5/6) Fetching data for RENT3.SA
+"
+"1","[32m✔[39m 	- found cache file (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 1360 valid rows (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 100% of valid prices -- Time for some tea?
+"
+"1","[36mℹ[39m (6/6) Fetching data for TASA4.SA
+"
+"1","[32m✔[39m 	- found cache file (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 1360 valid rows (2019-01-02 --> 2024-06-21)
+"
+"1","[32m✔[39m 	- got 100% of valid prices -- Time for some tea?
+"
+"1","[36mℹ[39m Binding price data
+"
+"1","[36mℹ[39m Completing data points (do_complete_data = TRUE)
+"
+"1","
+"
+"1","[36m──[39m [1mDiagnostics[22m [36m─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m
+"
+"1","[32m✔[39m Returned dataframe with 7862 rows -- All OK!
+"
+"1","[36mℹ[39m Using 1.0 MB at C:\Users\miche\AppData\Local\Temp\RtmpEFyn4i/yf_cache for 7 cache files
+"
+"1","[36mℹ[39m Out of 6 requested tickers, you got 6 (100%)
+"
+"0","view(da)"
+"0",""

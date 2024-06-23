@@ -1,0 +1,7 @@
+"0","#| output: false"
+"0",""
+"0","da_tsibble <- da_train |>"
+"0","  as_tsibble(key = ticker, index = ref_date, regular = FALSE)"
+"0",""
+"0","View(da_tsibble)"
+"0",""

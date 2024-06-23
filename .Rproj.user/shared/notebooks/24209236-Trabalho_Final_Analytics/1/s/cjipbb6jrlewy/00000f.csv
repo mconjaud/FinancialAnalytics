@@ -1,0 +1,2 @@
+"0","forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)"
+"0","forecast"

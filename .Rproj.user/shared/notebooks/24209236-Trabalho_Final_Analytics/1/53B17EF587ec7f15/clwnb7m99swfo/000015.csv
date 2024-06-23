@@ -1,0 +1,6 @@
+"0","print(""Melhor modelo baseado no BIC:"")"
+"1","[1]"
+"1"," ""Melhor modelo baseado no BIC:"""
+"1","
+"
+"0","print(melhor_modelo_bic)"

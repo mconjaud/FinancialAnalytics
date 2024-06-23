@@ -1,0 +1,3 @@
+"0","par(mfrow=c(1,2))"
+"0","h <- hist(ret, breaks=20, col=""red"", xlab="""", "
+"0","          main=""Histogram"") "

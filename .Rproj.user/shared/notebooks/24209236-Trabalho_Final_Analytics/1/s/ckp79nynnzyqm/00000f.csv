@@ -1,0 +1,5 @@
+"0","da_tsibble |>"
+"0","  dplyr::mutate(ret2 = ret_closing_prices^2) |>"
+"0","  autoplot(ret2, colour = ""black"") +"
+"0","  facet_wrap(~ticker, ncol = 1)"
+"0",""

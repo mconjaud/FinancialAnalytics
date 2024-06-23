@@ -1,0 +1,5 @@
+"0","# Df com data mínima"
+"0","da_train <- da |>"
+"0","  dplyr::filter(ref_date > data_corte) "
+"0",""
+"0","view(da_train)  "

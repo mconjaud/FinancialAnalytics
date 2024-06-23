@@ -1,0 +1,3 @@
+"0","sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))"
+"0","colnames(sigma) <- c(""Volatilidade"")"
+"0","plot(sigma,auto.legend=T,legend.loc = ""top"",main='')"

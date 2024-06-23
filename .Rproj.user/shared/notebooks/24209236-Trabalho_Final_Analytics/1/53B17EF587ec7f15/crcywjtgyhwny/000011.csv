@@ -1,0 +1,4 @@
+"0","xfit <- seq(min(ret),max(ret),length=40) "
+"0","yfit <- dnorm(xfit,mean=mean(ret),sd=sd(ret)) "
+"0","yfit <- yfit*diff(h$mids[1:2])*length(ret) "
+"0","lines(xfit, yfit, col=""blue"", lwd=2)"

@@ -1,0 +1,7 @@
+"0","#criando gráfico da série de preços"
+"0","da_tsibble |>"
+"0","  autoplot(price_adjusted, colour = ""black"") +"
+"0","  facet_wrap(~ticker, scales = ""free_y"", ncol = 1)+"
+"0","  scale_x_date(date_breaks = ""3 months"", label=quarter_label) +"
+"0","  labs ( title = ""Série de Preço"", y = ""Preço"", x = ""Data"") +"
+"0","  theme(plot.title = element_text(hjust = 0.5))"

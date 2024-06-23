@@ -1,0 +1,72 @@
+---
+title: "TESTE_Financial"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{# Lista para comparação de modelos}
+modelos_garch <- list()
+ics_modelos_garch  <- list()
+resultados_tidy <- list()
+
+distribuicao_erro  <- c("norm", "std")
+
+  for (empresa in unique(da_tsibble$ticker)) {
+    retornos <- da_tsibble %>%
+    subset(ticker== empresa) %>%
+    select(ref_date,ret_closing_prices)
+  ret <- xts(retornos[,-1],order.by = ymd(retornos$ref_date))[-1,]
+  ret2 = ret**2
+  plot(ret2)
+
+    # Loop pelos parâmetros de tipo de distribuição e m e n
+    for (distribuicao in distribuicao_erro) {
+      for (m in 1:3) {
+        for (n in 0:3) {
+        
+          # Definir a fórmula do modelo com os parâmetros m e n atuais
+          formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+          # Ajustar o modelo GARCH
+          modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                                   include.mean = TRUE, cond.dist = distribuicao)
+
+          # Armazenar o modelo ajustado na lista para visualização detalhada
+          modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao, "_", empresa)]] <- modelo_atual
+          # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+          ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao, "_", empresa)]] <- modelo_atual@fit$ics
+        }
+      }
+    }
+
+    # Formatando resultados para melhor visualização 
+
+
+    for (nome_modelo in names(ics_modelos_garch)) {
+      valores <- ics_modelos_garch[[nome_modelo]]
+      df <- data.frame(
+        AIC = valores["AIC"],
+        BIC = valores["BIC"]
+      )
+        resultados_tidy[[nome_modelo]] <- df
+    }
+    } 
+    resultados_tidy_df <- do.call(rbind, resultados_tidy)
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).

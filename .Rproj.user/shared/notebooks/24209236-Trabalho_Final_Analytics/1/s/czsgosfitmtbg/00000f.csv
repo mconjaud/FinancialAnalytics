@@ -1,0 +1,4 @@
+"0","#Função para formatar legenda"
+"0","quarter_label <- function(x) {"
+"0","  paste0(year(x), ""Q"", quarter(x))"
+"0","}"

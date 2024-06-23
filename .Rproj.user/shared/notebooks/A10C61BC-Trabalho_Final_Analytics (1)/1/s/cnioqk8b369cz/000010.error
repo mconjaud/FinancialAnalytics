@@ -1,0 +1,1 @@
+{"frames":[{"func":"Ops.xts(ret, 2)","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0},{"func":"NextMethod(.Generic)","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0}],"message":"Error in `^.default`(ret, 2) : \n  argumento não-numérico para operador binário\n"}

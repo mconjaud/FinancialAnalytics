@@ -1,0 +1,8 @@
+"0","# filtrando pela empresa Nvidia"
+"0","amazon <- da_tsibble %>%"
+"0","  subset(ticker=='AMZO34.SA') %>%"
+"0","  select(ref_date,ret_closing_prices)"
+"0","ret <- xts(amazon[,-1],order.by = ymd(amazon$ref_date))[-1,]"
+"0","ret2 = ret**2"
+"0","plot(ret2)"
+"0",""
