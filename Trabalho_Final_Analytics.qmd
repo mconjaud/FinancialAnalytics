@@ -50,7 +50,9 @@ Seleção das Ações/Ativos e definição da data de início: 01/01/2019
 ```{r}
 #| output: false
 
+ main
 data_inicio <- '2019-01-01'
+ main
 
 ativos <- c(
   "NVDC34.SA",
@@ -60,8 +62,11 @@ ativos <- c(
   "PRIO3.SA",
   "TASA4.SA"
 )
+ main
 
 # Importando base da API do Yahoo
+
+ main
 da <- yfR::yf_get(
     ativos,
     first_date = data_inicio,
@@ -81,6 +86,8 @@ data_corte <- da |>
   dplyr::ungroup() |>
   with(max(ref_date))
 
+
+
 # Filtrando base com data mínima
 da_train <- da |>
   dplyr::filter(ref_date > data_corte) 
@@ -90,6 +97,11 @@ da_tsibble <- da_train |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
 ```
 
+main
+
+
+
+ main
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
@@ -112,12 +124,14 @@ quarter_label <- function(x) {
 da_tsibble |>
   autoplot(price_adjusted, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1)+
-  scale_x_date(date_breaks = "3 months", label=quarter_label) +
+  scale_x_date(date_breaks = "4 months", label=quarter_label) +
   labs ( title = "Série de Preço", y = "Preço", x = "Data") +
+ main
   theme(
     plot.title = element_text(hjust = .5),
     axis.text.x = element_text(hjust = 1, angle = 45)
   )
+ main
 ```  
 
 ## 1.2. Log Retornos
@@ -130,7 +144,7 @@ da_tsibble |>
 da_tsibble |>
   autoplot(ret_adjusted_prices, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1) +
-  scale_x_date(date_breaks = "3 months", labels = quarter_label) +
+  scale_x_date(date_breaks = "4 months", labels = quarter_label) +
   labs ( title = "Série de Log Retornos", y = "Log Retornos", x = "Data") +
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(hjust = 1, angle = 45)
