@@ -304,30 +304,133 @@ resultados_tidy_df  %>% rownames_to_column()  %>%
 
 ### 2.1.2. Avaliação do melhor modelo de cada ação
 
-Análise detalhada do melhor modelo pelos critérios de informação
+Análise detalhada do melhor modelo de cada ação pelos critérios de informação
 ```{r}
 
-modelos_garch
+Resumo_AMAZO34 <- summary(modelos_garch$garch_1_2_std_AMZO34.SA)
+Resumo_BCSA34 <- summary(modelos_garch$garch_1_1_std_BCSA34.SA)
+Resumo_RENT3 <- summary(modelos_garch$garch_2_1_std_RENT3.SA)
+Resumo_TASA4 <- summary(modelos_garch$garch_1_1_std_TASA4.SA)
+Resumo_NVDC34 <- summary(modelos_garch$garch_1_1_std_NVDC34.SA)
+Resumo_PRIO3 <- summary(modelos_garch$garch_1_1_std_PRIO3.SA)
+
+print(Resumo_AMAZO34)
+print(Resumo_BCSA34)
+print(Resumo_RENT3)
+print(Resumo_TASA4)
+print(Resumo_NVDC34)
+print(Resumo_PRIO3)
 
 ```
 
 **Interpretação**
 
-* xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+* Baseado nos coeficientes e nos critérios de informação:
 
+* Melhor Modelo Geral: AMAZON34 devido aos melhores valores de log-likelihood, AIC e BIC.
+* Maior Reatividade a Choques: TASA4 e BCSA34 têm altos valores de alpha1.
+* Maior Persistência da Volatilidade: PRIO3 e TASA4 com altos valores de beta1.
+
+* Os modelos AMAZON34 e BCSA34 parecem ser bem ajustados, com AMAZON34 tendo uma leve vantagem em termos de qualidade do ajuste.
 
 ### 2.1.3. Análise dos retornos e volatilidade 
 
+Gráfico dos retornos de cada ação
 ```{r}
-par(mfrow=c(2,1))
-plot(ret)
-sigma <- xts(cbind(modelos_garch$garch_1_1_std@sigma.t),order.by = index(ret))
-colnames(sigma) <- c("Volatilidade")
-plot(sigma,auto.legend=T,legend.loc = "top",main='')
+
+retornos <- da_tsibble %>%
+    select(ref_date,ret_closing_prices)
+  ret <- xts(retornos[,-1],order.by = ymd(retornos$ref_date))[-1,]
+
+da_tsibble |>
+  dplyr::mutate(ret = ret_closing_prices) |>
+  autoplot(ret, colour = "black") +
+  facet_wrap(~ticker, ncol = 1)
+
+```
+
+Gráfico da volatilidade de cada ação
+```{r}
+
+# Gráfico de 'Volatilidade AMZO34.SA'
+sigma <- xts(cbind(modelos_garch$garch_1_2_std_AMZO34.SA@sigma.t), order.by = index(ret))
+plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade AMZO34.SA")
+
+# Gráfico de 'Volatilidade BCSA34.SA'
+sigma <- xts(cbind(modelos_garch$garch_1_1_std_BCSA34.SA@sigma.t), order.by = index(ret))
+plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade BCSA34.SA")
+
+# Gráfico de 'Volatilidade PRIO3.SA'
+sigma <- xts(cbind(modelos_garch$garch_1_1_std_PRIO3.SA@sigma.t), order.by = index(ret))
+plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade PRIO3.SA")
+
+# Gráfico de 'Volatilidade NVDC34.SA'
+sigma <- xts(cbind(modelos_garch$garch_1_1_std_NVDC34.SA@sigma.t), order.by = index(ret))
+plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade NVDC34.SA")
+
+# Gráfico de 'Volatilidade TASA4.SA'
+sigma <- xts(cbind(modelos_garch$garch_1_1_std_TASA4.SA@sigma.t), order.by = index(ret))
+plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade TASA4.SA")
+
+# Gráfico de 'Volatilidade BCSA34.SA'
+sigma <- xts(cbind(modelos_garch$garch_1_1_std_BCSA34.SA@sigma.t), order.by = index(ret))
+plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade BCSA34.SA")
+
 ```
 
 
+```{r}
 
+model_names <- c(
+  "garch_1_2_std_AMZO34.SA",
+  "garch_1_1_std_BCSA34.SA",
+  "garch_1_1_std_PRIO3.SA",
+  "garch_1_1_std_NVDC34.SA",
+  "garch_1_1_std_TASA4.SA",
+  "garch_1_1_std_BCSA34.SA"
+)
+titles <- c(
+  "Volatilidade AMZO34.SA",
+  "Volatilidade BCSA34.SA",
+  "Volatilidade PRIO3.SA",
+  "Volatilidade NVDC34.SA",
+  "Volatilidade TASA4.SA",
+  "Volatilidade BCSA34.SA"
+)
+
+par(mfrow = c(6, 1)) 
+
+for (i in 1:length(model_names)) {
+  model_name <- model_names[i]
+  title <- titles[i]
+  
+  model <- modelos_garch[[model_name]]
+  sigma <- xts(cbind(model@sigma.t), order.by = index(ret))
+  
+  plot(sigma, main = title)
+}
+```
+
+## 2.1.4. Análise dos resíduos
+```{r}
+
+residuos <- list()
+
+for (i in 1:nrow(resultados_tidy_df
+                          )) {
+  # Concatenando o nome do modelo para ficar como consta no objeto modelos_garch
+  model_name <- paste0(resultados_tidy_df$Modelo[i], "_", resultados_tidy_df$m[i], "_", resultados_tidy_df$n[i], "_", resultados_tidy_df$dist[i], "_", resultados_tidy_df$ticker[i])
+  
+  # Checando se o modelo está entre os melhores
+  if (model_name %in% names(modelos_garch)) {
+    # Acessando os melhores modelos e calculando resíduos
+    current_model <- modelos_garch[[model_name]]
+    residuos[[model_name]] <- residuals(current_model, standardize = TRUE)
+  }
+}
+str(residuos)
+
+```
 
 
 
