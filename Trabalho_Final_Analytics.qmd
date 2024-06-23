@@ -294,7 +294,7 @@ distribuicao_erro  <- c("norm", "std")
     } 
     resultados_tidy_df <- do.call(rbind, resultados_tidy)
 
-resultados_tidy_df  %>% rownames_to_column()  %>% 
+resultados_tidy_df2 <- resultados_tidy_df  %>% rownames_to_column()  %>% 
                           separate(rowname, c("Modelo", "m", "n", "dist", "ticker"),
                           sep = "_")  %>% 
                           arrange(AIC)  %>% 
@@ -306,7 +306,6 @@ resultados_tidy_df  %>% rownames_to_column()  %>%
 
 Análise detalhada do melhor modelo de cada ação pelos critérios de informação
 ```{r}
-
 Resumo_AMAZO34 <- summary(modelos_garch$garch_1_2_std_AMZO34.SA)
 Resumo_BCSA34 <- summary(modelos_garch$garch_1_1_std_BCSA34.SA)
 Resumo_RENT3 <- summary(modelos_garch$garch_2_1_std_RENT3.SA)
@@ -352,35 +351,6 @@ da_tsibble |>
 Gráfico da volatilidade de cada ação
 ```{r}
 
-# Gráfico de 'Volatilidade AMZO34.SA'
-sigma <- xts(cbind(modelos_garch$garch_1_2_std_AMZO34.SA@sigma.t), order.by = index(ret))
-plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade AMZO34.SA")
-
-# Gráfico de 'Volatilidade BCSA34.SA'
-sigma <- xts(cbind(modelos_garch$garch_1_1_std_BCSA34.SA@sigma.t), order.by = index(ret))
-plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade BCSA34.SA")
-
-# Gráfico de 'Volatilidade PRIO3.SA'
-sigma <- xts(cbind(modelos_garch$garch_1_1_std_PRIO3.SA@sigma.t), order.by = index(ret))
-plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade PRIO3.SA")
-
-# Gráfico de 'Volatilidade NVDC34.SA'
-sigma <- xts(cbind(modelos_garch$garch_1_1_std_NVDC34.SA@sigma.t), order.by = index(ret))
-plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade NVDC34.SA")
-
-# Gráfico de 'Volatilidade TASA4.SA'
-sigma <- xts(cbind(modelos_garch$garch_1_1_std_TASA4.SA@sigma.t), order.by = index(ret))
-plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade TASA4.SA")
-
-# Gráfico de 'Volatilidade BCSA34.SA'
-sigma <- xts(cbind(modelos_garch$garch_1_1_std_BCSA34.SA@sigma.t), order.by = index(ret))
-plot(sigma, auto.legend = TRUE, legend.loc = "top", main = "Volatilidade BCSA34.SA")
-
-```
-
-
-```{r}
-
 model_names <- c(
   "garch_1_2_std_AMZO34.SA",
   "garch_1_1_std_BCSA34.SA",
@@ -400,37 +370,105 @@ titles <- c(
 
 par(mfrow = c(6, 1)) 
 
+sigma  <-  list()
 for (i in 1:length(model_names)) {
   model_name <- model_names[i]
   title <- titles[i]
   
   model <- modelos_garch[[model_name]]
-  sigma <- xts(cbind(model@sigma.t), order.by = index(ret))
+  sigma <- cbind(model@sigma.t) 
   
-  plot(sigma, main = title)
-}
+  print(plot(model@sigma.t, main = title))
+  }
 ```
 
 ## 2.1.4. Análise dos resíduos
+
 ```{r}
 
 residuos <- list()
+par(mfrow = c(6, 1))
 
-for (i in 1:nrow(resultados_tidy_df
-                          )) {
-  # Concatenando o nome do modelo para ficar como consta no objeto modelos_garch
-  model_name <- paste0(resultados_tidy_df$Modelo[i], "_", resultados_tidy_df$m[i], "_", resultados_tidy_df$n[i], "_", resultados_tidy_df$dist[i], "_", resultados_tidy_df$ticker[i])
+# Iterando sobre cada linha do data frame `resultados_tidy_df2`
+for (i in 1:nrow(resultados_tidy_df2)) {
+  
+  # Concatenando o nome do modelo 
+  model_name <- paste0(resultados_tidy_df2$Modelo[i], "_", 
+                       resultados_tidy_df2$m[i], "_", 
+                       resultados_tidy_df2$n[i], "_", 
+                       resultados_tidy_df2$dist[i], "_", 
+                       resultados_tidy_df2$ticker[i])
   
   # Checando se o modelo está entre os melhores
   if (model_name %in% names(modelos_garch)) {
-    # Acessando os melhores modelos e calculando resíduos
+    # Acessando os melhores modelos e calculando os resíduos
     current_model <- modelos_garch[[model_name]]
-    residuos[[model_name]] <- residuals(current_model, standardize = TRUE)
+    residuos[[model_name]] <- residuals(current_model, standardize=TRUE)
+    
+    # Plotando os resíduos
+    ts.plot(residuos[[model_name]], main = model_name)
   }
 }
-str(residuos)
+```
+
+* Padrões: Não foi encontrado padrões claros, o que é um bom sinal. Isso sugere que os modelos estão capturando bem a estrutura dos dados.
+* Outliers: Todos os gráficos têm alguns outliers, o que faz sentido em séries financeiras. 
+* Heterocedasticidade: três ações mostram variações na amplitude dos resíduos, sugerindo que pode haver alguma heterocedasticidade residual (RENT3.SA & NVDC334.SA & BCSA34.SA). 
+
+## 3.0 Prever volatilidade um passo à frente
+
+Função que ajusta o modelo e faz as previsões
+
+```{r}
+
+resultado_passo_frente <- data.frame(
+  Modelo = c("garch", "garch", "garch", "garch", "garch", "garch"),
+  m = c(1, 1, 2, 1, 1, 1),
+  n = c(2, 1, 1, 1, 1, 1),
+  dist = c("std", "std", "std", "std", "std", "std"),
+  ticker = c("AMZO34.SA", "BCSA34.SA", "RENT3.SA", "TASA4.SA", "NVDC34.SA", "PRIO3.SA"),
+  AIC = c(-4.853336, -4.751056, -4.609009, -4.227347, -4.109136, -4.106262),
+  BIC = c(-4.826964, -4.729079, -4.582637, -4.205371, -4.087160, -4.084286)
+)
+
+# Função para prever a volatilidade um passo à frente
+prever_volatilidade <- function(ticker, m, n, dist) {
+  
+  # Configuração do modelo GARCH
+  spec <- ugarchspec(
+    variance.model = list(model = "sGARCH", garchOrder = c(m, n)),
+    mean.model = list(armaOrder = c(0, 0)),
+    distribution.model = dist
+  )
+  
+  # Ajustar o modelo GARCH
+  fit <- ugarchfit(spec = spec, data = returns)
+  
+  # Prever a volatilidade um passo à frente
+  forecast <- ugarchforecast(fit, n.ahead = 1)
+  sigma_forecast <- sigma(forecast)
+  
+  return(sigma_forecast)
+}
+
+# Loop para prever a volatilidade para cada modelo na lista
+resultado_passo_frente$volatilidade_forecast <- NA
+
+for (i in 1:nrow(resultado_passo_frente)) {
+  ticker <- resultado_passo_frente$ticker[i]
+  m <- resultado_passo_frente$m[i]
+  n <- resultado_passo_frente$n[i]
+  dist <- resultado_passo_frente$dist[i]
+  
+  volatilidade <- prever_volatilidade(ticker, m, n, dist)
+  resultado_passo_frente$volatilidade_forecast[i] <- volatilidade
+}
+
+print(resultado_passo_frente)
 
 ```
+
+
 
 
 
