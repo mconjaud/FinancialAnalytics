@@ -25,7 +25,7 @@ execute:
 # 0. Bibliotecas e Importação de Dados
 
 Bibliotecas
-```{r}
+```{r bibliotecas}
 #| output: false
 library(ggplot2)
 library(fpp3)
@@ -47,12 +47,12 @@ library(timetk)
 
 
 Seleção das Ações/Ativos e definição da data de início: 01/01/2019
-```{r}
+```{r importacao dados}
 #| output: false
 
- main
+ 
 data_inicio <- '2019-01-01'
- main
+ 
 
 ativos <- c(
   "NVDC34.SA",
@@ -62,11 +62,14 @@ ativos <- c(
   "PRIO3.SA",
   "TASA4.SA"
 )
- main
+ 
 
 # Importando base da API do Yahoo
 
- main
+#| output: false
+
+
+
 da <- yfR::yf_get(
     ativos,
     first_date = data_inicio,
@@ -85,9 +88,6 @@ data_corte <- da |>
   dplyr::filter(ref_date == min(ref_date)) |>
   dplyr::ungroup() |>
   with(max(ref_date))
-
-
-
 # Filtrando base com data mínima
 da_train <- da |>
   dplyr::filter(ref_date > data_corte) 
@@ -95,20 +95,57 @@ da_train <- da |>
 # Transformando em Tsibble
 da_tsibble <- da_train |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
+
+
+retornos_mercado_log  <- yfR::yf_get(
+    '^BVSP',
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "log",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    )  %>% 
+    select(ref_date, ret_closing_prices)  %>%
+    filter(ref_date > data_corte)  %>%  
+    na.omit()  %>% 
+    distinct(ref_date, .keep_all = TRUE)
+
+
+retornos_mercado_arit  <- yfR::yf_get(
+    '^BVSP',
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "arit",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    )  %>% 
+    select(ref_date, ret_closing_prices)  %>%
+    filter(ref_date > data_corte)  %>%  
+    na.omit()  %>% 
+    distinct(ref_date, .keep_all = TRUE)
+
+
+retornos_carteira_arit <- yfR::yf_get(
+    ativos,
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "arit",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    ) %>% 
+    select( ref_date, ret_closing_prices )  %>% 
+    na.omit()
 ```
-
-main
-
-
-
- main
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
 ## 1.1. Gráfico de preços
 
 
-```{r}
+```{r funcao legenda}
 
 #Função para formatar legenda
 quarter_label <- function(x) {
@@ -116,7 +153,7 @@ quarter_label <- function(x) {
 }  
 ```
 
-```{r}
+```{r serie preco}
 #| fig-width: 7
 #| fig-height: 10
 
@@ -126,25 +163,25 @@ da_tsibble |>
   facet_wrap(~ticker, scales = "free_y", ncol = 1)+
   scale_x_date(date_breaks = "4 months", label=quarter_label) +
   labs ( title = "Série de Preço", y = "Preço", x = "Data") +
- main
+ 
   theme(
     plot.title = element_text(hjust = .5),
     axis.text.x = element_text(hjust = 1, angle = 45)
   )
- main
+ 
 ```  
 
 ## 1.2. Log Retornos
 
-```{r}
+```{r serie log retornos}
 #| fig-width: 7
 #| fig-height: 10
 #| 
 #criando gráfico da série de retornos
 da_tsibble |>
-  autoplot(ret_adjusted_prices, colour = "black") +
+  autoplot(ret_closing_prices, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1) +
-  scale_x_date(date_breaks = "4 months", labels = quarter_label) +
+  scale_x_date(date_breaks = "3 months", labels = quarter_label) +
   labs ( title = "Série de Log Retornos", y = "Log Retornos", x = "Data") +
   theme(plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(hjust = 1, angle = 45)
@@ -156,7 +193,7 @@ da_tsibble |>
 
 Criação do log retorno ao quadrado (proxi da volatilidade)
 
-```{r}
+```{r plot dos retornos ao quadrado}
 #| fig-width: 7
 #| fig-height: 10
 
@@ -177,13 +214,13 @@ da_tsibble |>
 
 ### 1.2.1. ACF dos retornos ao quadrado
 
-```{r}
+```{r criando ret quadrado}
 # Gerando variável dos retornos quadráticos
 da_tsibble  <-  da_tsibble |>
   dplyr::mutate(ret2 = ret_closing_prices^2)
 ```
 
-```{r}
+```{r acf retornos ao quadrado}
 #| fig-width: 7
 #| fig-height: 10
 
@@ -196,7 +233,7 @@ da_tsibble |>
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR CONCLUSÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 ### 1.2.2. Teste Ljung-Box
-```{r}
+```{r teste ljung box}
 
 resultados <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
@@ -222,25 +259,25 @@ print(resultados)
 * Rejeitam a hipótese nula: BCSA34.SA, RENT3.SA, PRIO3.SA e TASA4.SA, AMZO34.SA
 
 ### 1.2.3. Teste Lagrange Multiplier
-```{r}
+```{r teste lm}
 
 
-resultados_ml <- data.frame(Empresa = character(), "P-Valor" = numeric())
+resultados_lm <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
 for (empresa in ativos) {
   # Filtrar o dataframe para a empresa atual
   da_tsibble_filtered <- da_tsibble |> filter(ticker == empresa)
 
-  teste_ml <- ArchTest(da_tsibble_filtered$ret_closing_prices)
+  teste_lm <- ArchTest(da_tsibble_filtered$ret_closing_prices)
 
   # Adicionar o resultado ao dataframe de resultados
-  resultados_ml <- rbind(resultados_ml, 
+  resultados_lm <- rbind(resultados_lm, 
                                data.frame(Empresa = empresa, 
-                                          "P-Valor" = teste_ml$p.value 
+                                          "P-Valor" = teste_lm$p.value 
                                           ))
 }
 
-print(resultados_ml)
+print(resultados_lm)
 ```
 
 * Não rejeita a hipótese nula: NVDC34.SA
@@ -251,7 +288,7 @@ print(resultados_ml)
 
 ## 2.1. Ajuste
 
-```{r}
+```{r modelo garch para cada empresa}
 # Lista para comparação de modelos
 modelos_garch <- list()
 ics_modelos_garch  <- list()
@@ -300,10 +337,11 @@ resultados_tidy_df <- do.call(rbind, resultados_tidy) %>%
     arrange(AIC)  %>% 
     distinct(ticker, .keep_all = TRUE)
 
+resultados_tidy_df
 ```
 
 ## 2.2. Análise dos resíduos
-```{r}
+```{r analise dos residuos}
 residuos <- list()
 
 for (i in 1:nrow(resultados_tidy_df)) {
@@ -325,7 +363,7 @@ str(residuos)
 
 # 3. Previsão dos Ativos (HELIO)
 
-```{r}
+```{r previsao dos ativos}
 # forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
 # forecast
 ```
@@ -342,44 +380,11 @@ str(residuos)
 #                                         standardDeviation = forecast$standardDeviation))
 ```
 
-```{r}
-
-model_names <- c(
-  "garch_1_2_std_AMZO34.SA",
-  "garch_1_1_std_BCSA34.SA",
-  "garch_1_1_std_PRIO3.SA",
-  "garch_1_1_std_NVDC34.SA",
-  "garch_1_1_std_TASA4.SA",
-  "garch_1_1_std_BCSA34.SA"
-)
-titles <- c(
-  "Volatilidade AMZO34.SA",
-  "Volatilidade BCSA34.SA",
-  "Volatilidade PRIO3.SA",
-  "Volatilidade NVDC34.SA",
-  "Volatilidade TASA4.SA",
-  "Volatilidade BCSA34.SA"
-)
-
-par(mfrow = c(6, 1)) 
-
-sigma  <-  list()
-for (i in 1:length(model_names)) {
-  model_name <- model_names[i]
-  title <- titles[i]
-  
-  model <- modelos_garch[[model_name]]
-  sigma <- cbind(model@sigma.t) 
-  
-  print(plot(model@sigma.t, main = title))
-  }
-```
-
 # 4. Portfólio
 
 ## 4.1. Retorno ponderado, Risco e Ratio
 
-```{r}
+```{r retorno portfolio}
 
 pesos  <- c(0.10, 0.20, 0.20, 0.10, 0.20, 0.20) %>% 
   setNames(ativos)
@@ -404,7 +409,7 @@ paste0("Média dos retornos do portfólio: ", media_retornos)
 ```
 
 ## 4.2. Modelagem Garch do Portfolio
-```{r}
+```{r modelagem garch portfolio}
 modelos_garch_portfolio <- list()
 ics_modelos_garch_portfolio  <- list()
 resultados_tidy_portfolio <- list()
@@ -420,7 +425,7 @@ for (distribuicao in distribuicao_erro) {
       # Ajustar o modelo GARCH
       modelo_atual <- garchFit(
         formula = as.formula(formula_garch),
-        data = retornos_portfolio$Retornos,
+        data = retorno_ponderado_portfolio$retornos,
         trace = FALSE,          
         include.mean = TRUE, 
         cond.dist = distribuicao)
@@ -454,105 +459,13 @@ resultados_tidy_df_portfolio
 
 ## 4.3. Forecast do Portfólio
 
-```{r}
-forecast <- predict(modelos_garch_portfolio$garch_1_1_std, n.ahead = 1)
-forecast
+```{r forecast portfolio}
+forecast_volatilidade_portifolio <- predict(modelos_garch_portfolio$garch_1_1_std, n.ahead = 1)
+forecast_volatilidade_portifolio
 ```
-
-# 5. CAPM Portfólio
-
-Bases de retornos do mercado (Ibovespa)
+formatando para wide e transformando em formato objeto xts
 ```{r}
-#| output: false
-
-retornos_mercado_log  <- yfR::yf_get(
-    '^BVSP',
-    first_date = data_inicio,
-    last_date = Sys.Date(),
-    bench_ticker = "^BVSP",
-    type_return = "log",
-    freq_data = "daily",
-    do_complete_data = TRUE
-    )  %>% 
-    select(ref_date, ret_closing_prices)  %>%
-    filter(ref_date > data_corte)  %>%  
-    na.omit()  %>% 
-    distinct(ref_date, .keep_all = TRUE)
-
-
-retornos_mercado_arit  <- yfR::yf_get(
-    '^BVSP',
-    first_date = data_inicio,
-    last_date = Sys.Date(),
-    bench_ticker = "^BVSP",
-    type_return = "arit",
-    freq_data = "daily",
-    do_complete_data = TRUE
-    )  %>% 
-    select(ref_date, ret_closing_prices)  %>%
-    filter(ref_date > data_corte)  %>%  
-    na.omit()  %>% 
-    distinct(ref_date, .keep_all = TRUE)
-
-
-retornos_carteira_arit <- yfR::yf_get(
-    ativos,
-    first_date = data_inicio,
-    last_date = Sys.Date(),
-    bench_ticker = "^BVSP",
-    type_return = "arit",
-    freq_data = "daily",
-    do_complete_data = TRUE
-    ) %>% 
-    select( ref_date, ret_closing_prices )  %>% 
-    na.omit()
-
-```
-
-## Betas individuais por ativo  
-```{r}
-betas <- list() # Inicializa a lista para armazenar os betas
-
-for (empresa in ativos) {
-  # Filtra o dataframe para a empresa atual no loop
-  da_tsibble_filtrado <- da_tsibble %>% 
-    filter(ticker == empresa)
-  
-  # Calcula o modelo linear
-  modelo_lm <- lm(ret_closing_prices ~ retornos_mercado_log$ret_closing_prices, data = da_tsibble_filtrado)
-  
-  # Extrai o coeficiente beta e armazena na lista
-  betas[[empresa]] <- coef(modelo_lm)["retornos_mercado_log$ret_closing_prices"]
-}
-
-# transforma a lista de betas em um dataframe ou tibble
-betas_df <- tibble(empresa = names(betas), beta = unlist(betas))
-
-print(betas_df)
-```
-
-##  ARRUMAR AQUI DEVE ESTAR ERRADO Retorno ponderado do Portfólio
-```{r}
-betas_ponderados <- betas_df$beta * pesos[betas_df$empresa]
-somatorio_betas_ponderados <- sum(betas_ponderados)
-somatorio_betas_ponderados
-```
-
-## Retornos
-```{r}
-retorno_anual_carteira  <- mean(retornos_carteira_arit$ret_closing_prices)*252
-retorno_anual_mercado <- mean(retornos_mercado_arit$ret_closing_prices)*252
-selic  <- 0.105
-retorno_esperado_carteira  <- selic + (retorno_anual_mercado - selic)*somatorio_ponderado_betas
-
-print(paste0("Considerando taxa Selic de 10,5%, retorno anual do mercado (Ibovespa) de 6%, o retorno mínimo esperado da carteira é de ", round(retorno_esperado_carteira,2)*100,"%" ))
-```
-
-# Otimização da carteira
-```{r}
-
-
-# formatando para wide e transformando em formato objeto xts
+ 
 portfolio_wide_xts  <-  portfolio %>% 
   spread(ticker, value = ret_closing_prices)  %>% 
     tk_xts()
@@ -561,31 +474,121 @@ portfolio_wide_xts <- portfolio_wide_xts[,-7]
 # Convertendo colunas para numéricas
 portfolio_wide_xts <- apply(portfolio_wide_xts, 2, as.numeric)
 
-numero_simulacoes_portfolio = 5000
-
-todos_os_pesos  <- 
+ 
 ```
 
+
 ### Matriz covariância
-```{r}
+```{r matriz covariancia}
 cov_mat <- cov(portfolio_wide_xts) * 252
 print(round(cov_mat,4))
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR INTERPRETAÇÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 ### Media de retornos
-```{r}
+```{r media de retornos portfolio }
 media_retornos  <- colMeans(portfolio_wide_xts)
 media_retornos
 ``` 
 
 ### Risco (Desvio Padrão)
-```{r}
+```{r risco portfolio}
 risco_portfolio  <- sqrt(t(pesos) %*% (cov_mat %*% pesos))
 ```
 
 ### Sharpe ratio
-```{r}
+```{r sharpe ratio}
 sharpe_ratio  <- media_retornos / risco_portfolio
 ```
+
+# Otimização do Portfólio
+```{r otimizacao portfolio}
+
+numero_simulacoes_portfolio = 5000
+
+simulacao_retornos <- function(i) {
+  pesos <- runif(length(ativos))
+  pesos <- pesos / sum(pesos)
+  retorno_portfolio <- sum(pesos * media_retornos)
+  desvio_padrao_portfolio <- as.numeric(sqrt(t(pesos) %*% (cov_mat %*% pesos)))
+  sr <- retorno_portfolio / desvio_padrao_portfolio
+
+  pesos |>
+    purrr::set_names(ativos) |>
+    tibble::enframe() |>
+    tidyr::pivot_wider() |>
+    dplyr::mutate(
+      return = retorno_portfolio,
+      risk = desvio_padrao_portfolio,
+      sharpe = sr
+    )
+}
+
+portfolio_values <- purrr::map(1:2000, simulacao_retornos, .progress = TRUE) |>
+  bind_rows(.id = "run")
+
+min_var <- portfolio_values[which.min(portfolio_values$risk),]
+max_sr <- portfolio_values[which.max(portfolio_values$sharpe),]
+
+```
+
+```{r grafico min var}
+
+min_var |>
+  pivot_longer(2:7) |>
+  mutate(name = forcats::fct_reorder(name, value)) |>
+  ggplot(aes(name, value)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Asset",
+    y = "Weight",
+    title = "Minimum variance portfolio weights"
+  )
+
+
+```
+
+```{r grafico max var}
+max_sr |>
+  pivot_longer(2:7) |>
+  mutate(name = forcats::fct_reorder(name, value)) |>
+  ggplot(aes(name, value)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Asset",
+    y = "Weight",
+    title = "Tangency portfolio weights"
+  )
+```
+
+
+```{r grafico retornos risco}
+portfolio_values |>
+  ggplot(aes(x = risk, y = return, color = sharpe)) +
+  geom_point() +
+  theme_classic() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(
+    x = 'Risk',
+    y = 'Returns',
+    title = "Portfolio Optimization & Efficient Frontier"
+  ) +
+  geom_point(
+    aes(x = risk, y = return),
+    data = min_var,
+    color = 'red',
+    size = 3
+  ) +
+  geom_point(
+    aes(x = risk, y = return),
+    data = max_sr,
+    color = 'orange',
+    size = 3
+  )
+```
+
+
+
+
