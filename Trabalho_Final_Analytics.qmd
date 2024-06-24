@@ -347,6 +347,8 @@ resultados_tidy_df
 
 ## 2.2. Análise dos resíduos
 ```{r analise dos residuos}
+#| fig-width: 7
+#| fig-height: 10
 
 residuos <- list()
 par(mfrow = c(6, 1))
@@ -414,8 +416,9 @@ print(forecast_ativos)
 
 ```
 
-## 4.0 Comparar volatilidades entre os retornos selecionados (quais são maiores e menores, relacionando com algum storytelling);
+## 4.0 Comparar volatilidades entre os retornos selecionados;
 
+**Interpretação**
 * Maiores Volatilidade: 
 
 * Amazon (0.03542044): 
@@ -443,6 +446,32 @@ Setor de aluguel de carros, pode ter sua volatilidade influenciada por fatores s
 * PRIO (0.02174031):
 * Operando no setor de petróleo e gás, tem suas variações devido a oscilações nos preços do petróleo (Cenário macro), políticas energéticas internas e externas e eventos geopolíticos (OPEC, Guerra na Ucrania).
  
+## 4.1. Retorno ponderado, Risco e Ratio
+
+```{r ponderação do portfolio}
+
+pesos  <- c(0.10, 0.20, 0.20, 0.10, 0.20, 0.20) %>% 
+  setNames(ativos)
+
+portfolio  <- da_tsibble  %>% 
+                select(ticker, ret_closing_prices)
+
+retorno_ponderado_portfolio <- portfolio |>
+  ungroup() %>% 
+  as_tibble() %>% 
+  tidyquant::tq_portfolio(
+    ticker,
+    ret_closing_prices,
+    weights = pesos,
+    col_rename = "retornos"
+  )
+
+media_retornos  <-  round(mean(retorno_ponderado_portfolio$retornos),7)
+
+paste0("Média dos retornos do portfólio: ", media_retornos)
+
+```
+
 
 ## 4.2. Modelagem Garch do Portfolio
 ```{r modelagem garch portfolio}
@@ -518,6 +547,19 @@ portfolio_wide_xts <- apply(portfolio_wide_xts, 2, as.numeric)
 cov_mat <- cov(portfolio_wide_xts) * 252
 print(round(cov_mat,4))
 ```
+
+**Interpretação**
+
+* Maior Covariância: 
+* AMZO34.SA e NVDC34.SA & PRIO3.SA com RENT3.SA: Indicando que esses pares de empresas tendem a ter retornos que se movem de maneira mais sincronizada. 
+* AMZO34.SA e NVDC34.SA dividem o mesmo mercado e são listadas fora do Brasil, isso ajuda a explicar a covariancia. 
+
+* Menor Covariância: 
+* AMZO34.SA e RENT3.SA: Sugerindo que os retornos dessas duas empresas têm pouca relação direta entre si, além de fazerem parte de mercados diferentes.
+
+* Covariância Alta dentro das Empresas: 
+* PRIO3.SA e TASA4.SA têm covariâncias internas relativamente altas, refletindo sua alta volatilidade, o que chama a atenção pela Taurus se tratar de uma empresa bem diferente da Localiza.
+
 
 ### Media de retornos
 ```{r media de retornos portfolio }
