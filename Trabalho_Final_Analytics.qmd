@@ -577,6 +577,7 @@ risco_portfolio  <- sqrt(t(pesos) %*% (cov_mat %*% pesos))
 sharpe_ratio  <- media_retornos / risco_portfolio
 ```
 
+# Otimização do Portfólio
 ```{r otimizacao portfolio}
 
 numero_simulacoes_portfolio = 5000
@@ -607,7 +608,6 @@ max_sr <- portfolio_values[which.max(portfolio_values$sharpe),]
 
 ```
 
-Gráfico de mínimo Value at Risk
 ```{r grafico min var}
 
 min_var |>
@@ -621,6 +621,7 @@ min_var |>
     y = "Pesos",
     title = "Portfólio de mínima variância "
   )
+
 ```
 
 Gráfico de máximo Value at Risk
@@ -638,8 +639,8 @@ max_sr |>
   )
 ```
 
-Gráfico otimização
-```{r grafico retornos risco}
+
+```{r Gráfico otimização}
 portfolio_values |>
   ggplot(aes(x = risk, y = return, color = sharpe)) +
   geom_point() +
@@ -665,20 +666,24 @@ portfolio_values |>
   )
 ```
 
+## Retorno portfólio otimizado
+```{r Retorno portfólio otimizado}
+portfolio  <- da_tsibble  %>% 
+                select(ticker, ret_closing_prices)
 
-## VaR do portfolio
-```{r}
-pesos_finais <- min_var |>
-  dplyr::select(2:7) |>
-  as.numeric()
+retorno_ponderado_portfolio <- portfolio |>
+  ungroup() %>% 
+  as_tibble() %>% 
+  tidyquant::tq_portfolio(
+    ticker,
+    ret_closing_prices,
+    weights = pesos,
+    col_rename = "retornos"
+  )
 
-rt_final <- mean(forecast_ativos$serie * pesos_finais)
-st_dev_final <- sqrt(pesos_finais %*% cov_mat %*% pesos_finais)
-nu <- min(vol_futuro$shape)
-valor_t <- qt(.95, nu)
+media_retornos  <-  round(mean(retorno_ponderado_portfolio$retornos),7)
 
-(VaR <- rt_final + valor_t * st_dev_final / sqrt(nu/(nu-2)))
-```
+paste0("Média dos retornos do portfólio: ", media_retornos)```
 
 # CAPM
 ```{r}
@@ -705,6 +710,57 @@ beta_geral
 
 ```
 
+## VaR do portfolio
+```{r VaR do portfolio}
+
+pesos_finais <- min_var |>
+  dplyr::select(2:7) |>
+  as.numeric()
+
+# rt_final <- mean(forecast_ativos$serie * pesos_finais)
+# st_dev_final <- sqrt(pesos_finais %*% cov_mat %*% pesos_finais)
+# nu <- min(vol_futuro$shape)
+# valor_t <- qt(.95, nu)
+
+# (VaR <- rt_final + valor_t * st_dev_final / sqrt(nu/(nu-2)))
+```
+
+## CAPM
+```{r retornos portfolio mercado}
+
+retornos_portfolio_mercado <- retornos_mercado_arit |>
+  dplyr::inner_join(retorno_ponderado_portfolio, "ref_date") |>
+  tidyr::drop_na()
+
+(beta_geral <- with(retornos_portfolio_mercado, cov(retornos, ibov) / var(ibov)))
+
+```
+
+```{r calcular beta}
+
+calcular_beta <- function(ativo) {
+  da_tsibble |>
+    dplyr::filter(ticker == ativo) |>
+    dplyr::inner_join(retornos_mercado_arit, "ref_date") |>
+    tidyr::drop_na() |>
+    with(cov(ret_closing_prices, ibov) / var(ibov))
+}
+
+betas <- purrr::map_dbl(ativos, calcular_beta) |>
+  purrr::set_names(ativos)
+
+sum(betas * pesos_finais)
+
+
+```
+
+```{r Beta Geral}
+
+beta_geral
+
+```
+
+
 ```{r}
 
 capm_lm_tudo <- lm(retornos ~ ibov, data = retornos_portfolio_mercado) |>
@@ -725,12 +781,13 @@ capm_lm_individual <- purrr::map_dbl(ativos, \(ativo) {
 
 capm_lm_tudo
 
-capm_lm_individual
 ```
 
+```{r LM Individual}
 
-1. Calcular retorno da carteira otimizada
-2. Comparar retornos <- ?
-3. Arrumar CAPM
-4. Interpretar CAPM
-5. Matriz de covariância <- ?
+capm_lm_individual
+
+```
+
+**Interpretação**
+
