@@ -46,10 +46,13 @@ library(timetk)
 ```
 
 Importação das bases de dados
+* **Ativos:** Nvidia, Banco Santander, Amazon, Localiza, Prio, Taurus
+* **Data de início:** 2019-11-01
+* **Data final:** 24/06/2024
+
 ```{r importacao dados}
 #| output: false
 
- 
 data_inicio <- '2019-01-01'
  
 
@@ -67,8 +70,6 @@ ativos <- c(
 
 #| output: false
 
-
-
 da <- yfR::yf_get(
     ativos,
     first_date = data_inicio,
@@ -81,36 +82,37 @@ da <- yfR::yf_get(
     select( ticker, ref_date, price_adjusted, ret_closing_prices )
  
         
-# Capturando menor data da base 
+# Capturando menor data comum entre as empresas do portfólio
 data_corte <- da |>
   dplyr::group_by(ticker) |>
   dplyr::filter(ref_date == min(ref_date)) |>
   dplyr::ungroup() |>
   with(max(ref_date))
+
 # Filtrando base com data mínima
 da_train <- da |>
   dplyr::filter(ref_date > data_corte) 
 
-# Transformando em Tsibble
+# Transformando a base em Tsibble
 da_tsibble <- da_train |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
 
+# # Importando base com retornos do Ibovespa em Log 
+# retornos_mercado_log  <- yfR::yf_get(
+#     '^BVSP',
+#     first_date = data_corte,
+#     last_date = Sys.Date(),
+#     bench_ticker = "^BVSP",
+#     type_return = "log",
+#     freq_data = "daily",
+#     do_complete_data = TRUE
+#     )  %>% 
+#     select(ref_date, ret_closing_prices)  %>%
+#     filter(ref_date > data_corte)  %>%  
+#     na.omit()  %>% 
+#     distinct(ref_date, .keep_all = TRUE)
 
-retornos_mercado_log  <- yfR::yf_get(
-    '^BVSP',
-    first_date = data_corte,
-    last_date = Sys.Date(),
-    bench_ticker = "^BVSP",
-    type_return = "log",
-    freq_data = "daily",
-    do_complete_data = TRUE
-    )  %>% 
-    select(ref_date, ret_closing_prices)  %>%
-    filter(ref_date > data_corte)  %>%  
-    na.omit()  %>% 
-    distinct(ref_date, .keep_all = TRUE)
-
-
+# Importando base com retornos do Ibovespa em Arit 
 retornos_mercado_arit  <- yfR::yf_get(
     '^BVSP',
     first_date = data_corte + 1,
@@ -125,6 +127,7 @@ retornos_mercado_arit  <- yfR::yf_get(
     na.omit()  %>% 
     distinct(ref_date, .keep_all = TRUE)
 
+# Importando base com retornos da carteira em Arit 
 retornos_carteira_arit <- yfR::yf_get(
     ativos,
     first_date = data_corte,
@@ -136,16 +139,12 @@ retornos_carteira_arit <- yfR::yf_get(
     ) %>% 
     select( ref_date, ret_closing_prices )  %>% 
     na.omit()
-
 ```
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
 ## 1.1. Gráfico de preços
-
-
 ```{r funcao legenda}
-
 #Função para formatar legenda
 quarter_label <- function(x) {
   paste0(year(x), "Q", quarter(x))
@@ -171,7 +170,6 @@ da_tsibble |>
 ```  
 
 ## 1.2. Log Retornos
-
 ```{r serie log retornos}
 #| fig-width: 7
 #| fig-height: 10
@@ -342,29 +340,119 @@ resultados_tidy_df
 ## 2.2. Análise dos resíduos
 ```{r analise dos residuos}
 residuos <- list()
+par(mfrow = c(6, 1))
 
+# Iterando sobre cada linha do data frame `resultados_tidy_df2`
 for (i in 1:nrow(resultados_tidy_df)) {
-  # Concatenando o nome do modelo para ficar como consta no objeto modelos_garch
-  model_name <- paste0(resultados_tidy_df$Modelo[i], "_", resultados_tidy_df$m[i], "_", resultados_tidy_df$n[i], "_", resultados_tidy_df$dist[i], "_", resultados_tidy_df$ticker[i])
+  
+  # Concatenando o nome do modelo 
+  model_name <- paste0(resultados_tidy_df$Modelo[i], "_", 
+                       resultados_tidy_df$m[i], "_", 
+                       resultados_tidy_df$n[i], "_", 
+                       resultados_tidy_df$dist[i], "_", 
+                       resultados_tidy_df$ticker[i])
   
   # Checando se o modelo está entre os melhores
   if (model_name %in% names(modelos_garch)) {
-    # Acessando os melhores modelos e calculando resíduos
+    # Acessando os melhores modelos e calculando os resíduos
     current_model <- modelos_garch[[model_name]]
-    residuos[[model_name]] <- residuals(current_model, standardize = TRUE)
+    residuos[[model_name]] <- residuals(current_model, standardize=TRUE)
+    
+    # Plotando os resíduos
+    ts.plot(residuos[[model_name]], main = model_name)
   }
 }
-str(residuos)
 
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!INSERIR CONCLUSÃO AQUI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+**Interpretação**
+* Padrões: Não foi encontrado padrões claros, o que é um bom sinal. Isso sugere que os modelos estão capturando bem a estrutura dos dados.
+* Outliers: Todos os gráficos têm alguns outliers, o que faz sentido em séries financeiras. 
+* Heterocedasticidade: três ações mostram variações na amplitude dos resíduos, sugerindo que pode haver alguma heterocedasticidade residual (RENT3.SA & NVDC334.SA & BCSA34.SA). 
 
-# 3. Previsão dos Ativos (HELIO)
+# 3. Previsão dos Ativos
+```{r}
+
+
+forecast_amazon <- predict(modelos_garch$garch_1_2_std_AMZO34.SA, n.ahead = 1)
+forecast_santander <- predict(modelos_garch$garch_1_1_std_BCSA34.SA, n.ahead = 1)
+forecast_nvidia <- predict(modelos_garch$garch_1_1_std_NVDC34.SA, n.ahead = 1)
+forecast_localiza <- predict(modelos_garch$garch_2_1_std_RENT3.SA, n.ahead = 1)
+forecast_prio <- predict(modelos_garch$garch_1_1_std_PRIO3.SA, n.ahead = 1)
+forecast_taurus <- predict(modelos_garch$garch_1_1_std_TASA4.SA, n.ahead = 1)
+
+
+# Criar um vetor com as previsões de volatilidade para cada ativo
+vetor_previsoes <- c(
+  forecast_nvidia$standardDeviation,
+  forecast_santander$standardDeviation,
+  forecast_amazon$standardDeviation,
+  forecast_localiza$standardDeviation,
+  forecast_prio$standardDeviation,
+  forecast_taurus$standardDeviation
+)
+
+# Criar um dataframe com os nomes dos ativos
+forecast_ativos <- data.frame(
+  ativo = c("AMZO34.SA", "BCSA34.SA", "NVDC34.SA", "RENT3.SA", "PRIO3.SA", "TASA4.SA"),
+  serie = vetor_previsoes
+)
+
+# Exibir o dataframe criado
+print(forecast_ativos)
+```
+
 
 ```{r previsao dos ativos}
-# forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
-# forecast
+# # Dados de exemplo (volatilidade_passo_frente)
+# volatilidade_passo_frente <- data.frame(
+#   Modelo = c("garch", "garch", "garch", "garch", "garch", "garch"),
+#   m = c(1, 1, 2, 1, 1, 1),
+#   n = c(2, 1, 1, 1, 1, 1),
+#   dist = c("std", "std", "std", "std", "std", "std"),
+#   ticker = c("AMZO34.SA", "BCSA34.SA", "RENT3.SA", "TASA4.SA", "NVDC34.SA", "PRIO3.SA"),
+#   AIC = c(-4.853336, -4.751056, -4.609009, -4.227347, -4.109136, -4.106262),
+#   BIC = c(-4.826964, -4.729079, -4.582637, -4.205371, -4.087160, -4.084286)
+# )
+
+# # Função para prever a volatilidade um passo à frente
+# prever_volatilidade <- function(ticker, m, n, dist) {
+#   # Simulação de dados de retorno (substitua com seus próprios dados)
+#   set.seed(123)
+#   returns <- rnorm(1000)
+
+#   # Configuração do modelo GARCH
+#   spec <- ugarchspec(
+#     variance.model = list(model = "sGARCH", garchOrder = c(m, n)),
+#     mean.model = list(armaOrder = c(0, 0)),
+#     distribution.model = dist
+#   )
+  
+#   # Ajustar o modelo GARCH
+#   fit <- ugarchfit(spec = spec, data = returns)
+  
+#   # Prever a volatilidade um passo à frente
+#   forecast <- ugarchforecast(fit, n.ahead = 1)
+#   sigma_forecast <- sigma(forecast)
+  
+#   return(sigma_forecast)
+# }
+
+# # Loop para prever a volatilidade para cada modelo na lista
+# volatilidade_passo_frente$volatilidade_forecast <- NA
+
+# for (i in 1:nrow(volatilidade_passo_frente)) {
+#   ticker <- volatilidade_passo_frente$ticker[i]
+#   m <- volatilidade_passo_frente$m[i]
+#   n <- volatilidade_passo_frente$n[i]
+#   dist <- volatilidade_passo_frente$dist[i]
+  
+#   volatilidade <- prever_volatilidade(ticker, m, n, dist)
+#   volatilidade_passo_frente$volatilidade_forecast[i] <- volatilidade
+# }
+
+# # Mostrar os resultados
+# print(volatilidade_passo_frente)
 ```
 
 ```{r}
@@ -462,7 +550,6 @@ forecast_volatilidade_portifolio
 ```
 
 # Otimização do Portfólio
-
 formatando para wide e transformando em formato objeto xts
 ```{r}
  
@@ -473,7 +560,6 @@ portfolio_wide_xts  <-  portfolio %>%
 portfolio_wide_xts <- portfolio_wide_xts[,-7]
 # Convertendo colunas para numéricas
 portfolio_wide_xts <- apply(portfolio_wide_xts, 2, as.numeric)
-
  
 ```
 
@@ -546,7 +632,7 @@ min_var |>
 ```
 
 Gráfico de máximo Value at Risk
-```{r grafico max var}
+```{r grafico max sr}
 max_sr |>
   pivot_longer(2:7) |>
   mutate(name = forcats::fct_reorder(name, value)) |>
@@ -576,7 +662,7 @@ portfolio_values |>
   geom_point(
     aes(x = risk, y = return),
     data = min_var,
-    color = 'red',
+    color = 'green',
     size = 3
   ) +
   geom_point(
@@ -585,6 +671,21 @@ portfolio_values |>
     color = 'orange',
     size = 3
   )
+```
+
+
+## VaR do portfolio
+```{r}
+pesos_finais <- min_var |>
+  dplyr::select(2:7) |>
+  as.numeric()
+
+rt_final <- mean(forecast_ativos$serie * pesos_finais)
+st_dev_final <- sqrt(pesos_finais %*% cov_mat %*% pesos_finais)
+nu <- min(vol_futuro$shape)
+valor_t <- qt(.95, nu)
+
+(VaR <- rt_final + valor_t * st_dev_final / sqrt(nu/(nu-2)))
 ```
 
 # CAPM
@@ -634,3 +735,10 @@ capm_lm_tudo
 
 capm_lm_individual
 ```
+
+
+1. Calcular retorno da carteira otimizada
+2. Comparar retornos <- ?
+3. Arrumar CAPM
+4. Interpretar CAPM
+5. Matriz de covariância <- ?
