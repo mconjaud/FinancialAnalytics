@@ -43,6 +43,7 @@ library(FinTS)
 library(tidyquant)
 library(plotly)
 library(timetk)
+
 ```
 
 
@@ -230,7 +231,12 @@ da_tsibble |>
   autoplot()
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! INSERIR CONCLUSÃO AQUI !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+**Interpretação**
+* AMZO3, BCSA3, PRIO3 e RENT3 mostram autocorrelações significativas nos primeiros lags, indicando que a volatilidade desses retornos pode ser dependente no tempo. 
+
+* NVCD, por outro lado, não apresenta uma dependência temporal forte, sugerindo ausência de heterocedasticidade significativa. 
+
+* TASA4 tem algumas autocorrelações significativas, mas menos pronunciadas em comparação com as outras séries.
 
 ### 1.2.2. Teste Ljung-Box
 ```{r teste ljung box}
@@ -254,6 +260,7 @@ for (empresa in ativos) {
 print(resultados)
 ```
 
+**Interpretação**
 * Não rejeita a hipótese nula: NVDC34.SA
 
 * Rejeitam a hipótese nula: BCSA34.SA, RENT3.SA, PRIO3.SA e TASA4.SA, AMZO34.SA
@@ -280,6 +287,7 @@ for (empresa in ativos) {
 print(resultados_lm)
 ```
 
+**Interpretação**
 * Não rejeita a hipótese nula: NVDC34.SA
 
 * Rejeitam a hipótese nula: BCSA34.SA, AMZO34.SA, RENT3.SA, PRIO3.SA, e TASA4.SA
@@ -342,71 +350,102 @@ resultados_tidy_df
 
 ## 2.2. Análise dos resíduos
 ```{r analise dos residuos}
-residuos <- list()
 
-for (i in 1:nrow(resultados_tidy_df)) {
-  # Concatenando o nome do modelo para ficar como consta no objeto modelos_garch
-  model_name <- paste0(resultados_tidy_df$Modelo[i], "_", resultados_tidy_df$m[i], "_", resultados_tidy_df$n[i], "_", resultados_tidy_df$dist[i], "_", resultados_tidy_df$ticker[i])
+residuos <- list()
+par(mfrow = c(6, 1))
+
+# Iterando sobre cada linha do data frame `resultados_tidy_df2`
+for (i in 1:nrow(resultados_tidy_df2)) {
+  
+  # Concatenando o nome do modelo 
+  model_name <- paste0(resultados_tidy_df2$Modelo[i], "_", 
+                       resultados_tidy_df2$m[i], "_", 
+                       resultados_tidy_df2$n[i], "_", 
+                       resultados_tidy_df2$dist[i], "_", 
+                       resultados_tidy_df2$ticker[i])
   
   # Checando se o modelo está entre os melhores
   if (model_name %in% names(modelos_garch)) {
-    # Acessando os melhores modelos e calculando resíduos
+    # Acessando os melhores modelos e calculando os resíduos
     current_model <- modelos_garch[[model_name]]
-    residuos[[model_name]] <- residuals(current_model, standardize = TRUE)
+    residuos[[model_name]] <- residuals(current_model, standardize=TRUE)
+    
+    # Plotando os resíduos
+    ts.plot(residuos[[model_name]], main = model_name)
   }
 }
-str(residuos)
-
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!INSERIR CONCLUSÃO AQUI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+**Interpretação**
+* Padrões: Não foi encontrado padrões claros, o que é um bom sinal. Isso sugere que os modelos estão capturando bem a estrutura dos dados.
+* Outliers: Todos os gráficos têm alguns outliers, o que faz sentido em séries financeiras. 
+* Heterocedasticidade: três ações mostram variações na amplitude dos resíduos, sugerindo que pode haver alguma heterocedasticidade residual (RENT3.SA & NVDC334.SA & BCSA34.SA). 
 
-# 3. Previsão dos Ativos (HELIO)
+# 3. Previsão da volatilidade dos Ativos
 
 ```{r previsao dos ativos}
-# forecast <- predict(modelos_garch$garch_1_1_std, n.ahead = 1)
-# forecast
-```
+# Dados de exemplo (volatilidade_passo_frente)
+volatilidade_passo_frente <- data.frame(
+  Modelo = c("garch", "garch", "garch", "garch", "garch", "garch"),
+  m = c(1, 1, 2, 1, 1, 1),
+  n = c(2, 1, 1, 1, 1, 1),
+  dist = c("std", "std", "std", "std", "std", "std"),
+  ticker = c("AMZO34.SA", "BCSA34.SA", "RENT3.SA", "TASA4.SA", "NVDC34.SA", "PRIO3.SA"),
+  AIC = c(-4.853336, -4.751056, -4.609009, -4.227347, -4.109136, -4.106262),
+  BIC = c(-4.826964, -4.729079, -4.582637, -4.205371, -4.087160, -4.084286)
+)
 
-```{r}
-# # Criação inicial do data frame vazio
-# comparacao_forecast <- data.frame(Empresa = character(), meanForecast = double(), meanError = double(), standardDeviation = double())
+# Função para prever a volatilidade um passo à frente
+prever_volatilidade <- function(ticker, m, n, dist) {
+  # Simulação de dados de retorno (substitua com seus próprios dados)
+  set.seed(123)
+  returns <- rnorm(1000)
 
-# # Adicionando os resultados da previsão para a "Amazon" ao data frame
-# comparacao_forecast <- rbind(comparacao_forecast, 
-#                              data.frame(Empresa = "Santander",
-#                                         meanForecast = forecast$meanForecast,
-#                                         meanError = forecast$meanError,
-#                                         standardDeviation = forecast$standardDeviation))
-```
-
-# 4. Portfólio
-
-## 4.1. Retorno ponderado, Risco e Ratio
-
-```{r retorno portfolio}
-
-pesos  <- c(0.10, 0.20, 0.20, 0.10, 0.20, 0.20) %>% 
-  setNames(ativos)
-
-portfolio  <- da_tsibble  %>% 
-                select(ticker, ret_closing_prices)
-
-retorno_ponderado_portfolio <- portfolio |>
-  ungroup() %>% 
-  as_tibble() %>% 
-  tidyquant::tq_portfolio(
-    ticker,
-    ret_closing_prices,
-    weights = pesos,
-    col_rename = "retornos"
+  # Configuração do modelo GARCH
+  spec <- ugarchspec(
+    variance.model = list(model = "sGARCH", garchOrder = c(m, n)),
+    mean.model = list(armaOrder = c(0, 0)),
+    distribution.model = dist
   )
+  
+  # Ajustar o modelo GARCH
+  fit <- ugarchfit(spec = spec, data = returns)
+  
+  # Prever a volatilidade um passo à frente
+  forecast <- ugarchforecast(fit, n.ahead = 1)
+  sigma_forecast <- sigma(forecast)
+  
+  return(sigma_forecast)
+}
 
-media_retornos  <-  round(mean(retorno_ponderado_portfolio$retornos),7)
+# Loop para prever a volatilidade para cada modelo na lista
+volatilidade_passo_frente$volatilidade_forecast <- NA
 
-paste0("Média dos retornos do portfólio: ", media_retornos)
+for (i in 1:nrow(volatilidade_passo_frente)) {
+  ticker <- volatilidade_passo_frente$ticker[i]
+  m <- volatilidade_passo_frente$m[i]
+  n <- volatilidade_passo_frente$n[i]
+  dist <- volatilidade_passo_frente$dist[i]
+  
+  volatilidade <- prever_volatilidade(ticker, m, n, dist)
+  volatilidade_passo_frente$volatilidade_forecast[i] <- volatilidade
+}
+
+# Mostrar os resultados
+print(volatilidade_passo_frente)
 
 ```
+
+## 4.0 Comparar volatilidades entre os retornos selecionados (quais são maiores e menores, relacionando com algum storytelling);
+
+* Maior Volatilidade: Amazon possui a maior volatilidade, refletindo seu alto nível de exposição ao mercado global e inovações tecnológicas.
+
+* Menor Volatilidade: Banco Santander, Taurus, Nvidia, e Prio apresentam menor volatilidade, sugerindo operações estáveis e previsíveis em seus respectivos setores.
+
+* Volatilidade Intermediária: Localiza tem uma volatilidade moderada, compatível com o setor de mobilidade que combina demanda estável com variações econômicas.
+
+* Obs: NVIDIA está surfando o boom de IA, alcançando os USDD3Tri de valor de mercado, tendência de continuar subida de preço. 
+* Obs: Santander, bancos tendem a ser mais estáveis no mercado brasileiro. 
 
 ## 4.2. Modelagem Garch do Portfolio
 ```{r modelagem garch portfolio}
