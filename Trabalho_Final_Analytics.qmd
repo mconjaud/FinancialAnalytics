@@ -374,9 +374,6 @@ for (i in 1:nrow(resultados_tidy_df)) {
   }
 }
 
-
-=======
-
 ```
 
 **Interpretação**
@@ -385,7 +382,7 @@ for (i in 1:nrow(resultados_tidy_df)) {
 * Heterocedasticidade: três ações mostram variações na amplitude dos resíduos, sugerindo que pode haver alguma heterocedasticidade residual (RENT3.SA & NVDC334.SA & BCSA34.SA). 
 
 
-# 3. Previsão dos Ativos
+# 3. Previsão da volatividadde dos Ativos (1 passo a frente)
 ```{r}
 
 forecast_amazon <- predict(modelos_garch$garch_1_2_std_AMZO34.SA, n.ahead = 1)
@@ -415,20 +412,37 @@ forecast_ativos <- data.frame(
 # Exibir o dataframe criado
 print(forecast_ativos)
 
-# 3. Previsão da volatilidade dos Ativos
-
 ```
 
 ## 4.0 Comparar volatilidades entre os retornos selecionados (quais são maiores e menores, relacionando com algum storytelling);
 
-* Maior Volatilidade: Amazon possui a maior volatilidade, refletindo seu alto nível de exposição ao mercado global e inovações tecnológicas.
+* Maiores Volatilidade: 
 
-* Menor Volatilidade: Banco Santander, Taurus, Nvidia, e Prio apresentam menor volatilidade, sugerindo operações estáveis e previsíveis em seus respectivos setores.
+* Amazon (0.03542044): 
+* Maior volatilidade entre as empresas analisadas. Isso pode ser atribuído ao seu papel de destaque no setor de tecnologia, e-commerce e entretenimento, mercados que são conhecidos por sua alta dinâmica e rápidas mudanças.
+
+* Banco Santander (0.02281454): 
+* Como instituição financeira, está sujeita a oscilações econômicas globais, políticas monetárias e flutuações de mercado (Maior banco da zona do euro). A volatilidade neste setor pode refletir mudanças nas taxas de juros, políticas regulatórias e a saúde econômica geral, além do impacto do aumento de competidores.
+
+* Menores volatilidaddes:
+
+* Tauros (0.01542000): 
+* A menor volatilidade. Isso pode indicar que Tauros opera em um setor mais estável ou que seus retornos são menos suscetíveis a flutuações do mercado. Empresa do ramo armamentista impactada por mudanças no governo e com foco em importação.
+
+
+* Nvidia (0.01613792):
+ Apesar de ser uma empresa de tecnologia, possui baixa volatilidade, resultado de sua posição sólida no mercado de IA (chips gráficos e data centers). Sua estabilidade é  atribuída a demanda crescente por chips de IA, alcançando USD3Tri de valor de mercado.
 
 * Volatilidade Intermediária: Localiza tem uma volatilidade moderada, compatível com o setor de mobilidade que combina demanda estável com variações econômicas.
 
-* Obs: NVIDIA está surfando o boom de IA, alcançando os USDD3Tri de valor de mercado, tendência de continuar subida de preço. 
-* Obs: Santander, bancos tendem a ser mais estáveis no mercado brasileiro. 
+* Volatilidaddes intermediárias:
+
+* Localiza (0.02111584):
+Setor de aluguel de carros, pode ter sua volatilidade influenciada por fatores sazonais e econômicos que afetam a demanda por locação de veículos. Além disso, procura do brasileiro por aluguel de carro vem crescendo nos últimos anos. 
+
+* PRIO (0.02174031):
+* Operando no setor de petróleo e gás, tem suas variações devido a oscilações nos preços do petróleo (Cenário macro), políticas energéticas internas e externas e eventos geopolíticos (OPEC, Guerra na Ucrania).
+ 
 
 ## 4.2. Modelagem Garch do Portfolio
 ```{r modelagem garch portfolio}
