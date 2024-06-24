@@ -21,3 +21,5 @@ PerformanceAnalytics
 TTR
 quantmod
 tidyquant
+plotly
+timetk
