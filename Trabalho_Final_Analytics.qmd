@@ -25,7 +25,7 @@ execute:
 # 0. Bibliotecas e Importação de Dados
 
 Bibliotecas
-```{r}
+```{r bibliotecas}
 #| output: false
 library(ggplot2)
 library(fpp3)
@@ -39,12 +39,23 @@ library(patchwork)
 library(lmtest)
 library(fGarch)
 library(xts)
+library(FinTS)
+library(tidyquant)
+library(plotly)
+library(timetk)
+
 ```
 
-Seleção das Ações/Ativos e definição da data de início: 01/01/2019
-```{r}
+Importação das bases de dados
+* **Ativos:** Nvidia, Banco Santander, Amazon, Localiza, Prio, Taurus
+* **Data de início:** 2019-11-01
+* **Data final:** 24/06/2024
 
-start_date <- '2019-01-01'
+```{r importacao dados}
+#| output: false
+
+data_inicio <- '2019-01-01'
+ 
 
 ativos <- c(
   "NVDC34.SA",
@@ -54,101 +65,136 @@ ativos <- c(
   "PRIO3.SA",
   "TASA4.SA"
 )
-```
+ 
 
-Selecionando as ações
+# Importando base da API do Yahoo
 
-```{r}
+#| output: false
+
 da <- yfR::yf_get(
-  ativos,
-  first_date = start_date,
-  last_date = Sys.Date(),
-  bench_ticker = "^BVSP",
-  type_return = "log",
-  freq_data = "daily",
-  do_complete_data = TRUE
-)
-view(da)
-
-```
-
-Data mínima comum a todas as séries
-
-```{r}
-# Capturando menor data da base 
+    ativos,
+    first_date = data_inicio,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "log",
+    freq_data = "daily",
+    do_complete_data = TRUE
+)    %>% 
+    select( ticker, ref_date, price_adjusted, ret_closing_prices )
+ 
+        
+# Capturando menor data comum entre as empresas do portfólio
 data_corte <- da |>
   dplyr::group_by(ticker) |>
   dplyr::filter(ref_date == min(ref_date)) |>
   dplyr::ungroup() |>
   with(max(ref_date))
 
-data_corte
-```
-
-```{r}
-# Df com data mínima
+# Filtrando base com data mínima
 da_train <- da |>
   dplyr::filter(ref_date > data_corte) 
 
-view(da_train)  
-```
-
-
-Transformando dataframe em tsbible 
-
-```{r}
-#| output: false
-
+# Transformando a base em Tsibble
 da_tsibble <- da_train |>
   as_tsibble(key = ticker, index = ref_date, regular = FALSE)
 
-View(da_tsibble)
+# # Importando base com retornos do Ibovespa em Log 
+# retornos_mercado_log  <- yfR::yf_get(
+#     '^BVSP',
+#     first_date = data_corte,
+#     last_date = Sys.Date(),
+#     bench_ticker = "^BVSP",
+#     type_return = "log",
+#     freq_data = "daily",
+#     do_complete_data = TRUE
+#     )  %>% 
+#     select(ref_date, ret_closing_prices)  %>%
+#     filter(ref_date > data_corte)  %>%  
+#     na.omit()  %>% 
+#     distinct(ref_date, .keep_all = TRUE)
 
+# Importando base com retornos do Ibovespa em Arit 
+retornos_mercado_arit  <- yfR::yf_get(
+    '^BVSP',
+    first_date = data_corte + 1,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "arit",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    )  %>% 
+    select(ref_date, ibov = ret_closing_prices)  %>%
+    filter(ref_date > data_corte)  %>%  
+    na.omit()  %>% 
+    distinct(ref_date, .keep_all = TRUE)
+
+# Importando base com retornos da carteira em Arit 
+retornos_carteira_arit <- yfR::yf_get(
+    ativos,
+    first_date = data_corte,
+    last_date = Sys.Date(),
+    bench_ticker = "^BVSP",
+    type_return = "arit",
+    freq_data = "daily",
+    do_complete_data = TRUE
+    ) %>% 
+    select( ref_date, ret_closing_prices )  %>% 
+    na.omit()
 ```
-
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
 
-## 1.1. Gráfico de preços e dos log retornos
-
-### 1.1.1. Preços
-
-```{r}
+## 1.1. Gráfico de preços
+```{r funcao legenda}
 #Função para formatar legenda
 quarter_label <- function(x) {
   paste0(year(x), "Q", quarter(x))
-}
+}  
 ```
 
+```{r serie preco}
+#| fig-width: 7
+#| fig-height: 10
 
-```{r}
 #criando gráfico da série de preços
 da_tsibble |>
   autoplot(price_adjusted, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1)+
   scale_x_date(date_breaks = "4 months", label=quarter_label) +
   labs ( title = "Série de Preço", y = "Preço", x = "Data") +
-  theme(plot.title = element_text(hjust = 0.1))
+ 
+  theme(
+    plot.title = element_text(hjust = .5),
+    axis.text.x = element_text(hjust = 1, angle = 45)
+  )
+ 
 ```  
 
-
-### 1.1.2. Log Retornos
-
-```{r}
+## 1.2. Log Retornos
+```{r serie log retornos}
+#| fig-width: 7
+#| fig-height: 10
+#| 
 #criando gráfico da série de retornos
 da_tsibble |>
-  autoplot(ret_adjusted_prices, colour = "black") +
+  autoplot(ret_closing_prices, colour = "black") +
   facet_wrap(~ticker, scales = "free_y", ncol = 1) +
-  scale_x_date(date_breaks = "4 months", labels = quarter_label) +
+  scale_x_date(date_breaks = "3 months", labels = quarter_label) +
   labs ( title = "Série de Log Retornos", y = "Log Retornos", x = "Data") +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(hjust = 1, angle = 45)
+  )
 
 ```
 
-## 1.2 Analisando possível heterocedasticidade condicional
+## 1.3 Avaliando heterocedasticidade condicional
 
 Criação do log retorno ao quadrado (proxi da volatilidade)
-```{r}
+
+```{r plot dos retornos ao quadrado}
+#| fig-width: 7
+#| fig-height: 10
+
 da_tsibble |>
   dplyr::mutate(ret2 = ret_closing_prices^2) |>
   autoplot(ret2, colour = "black") +
@@ -156,15 +202,26 @@ da_tsibble |>
 
 ```
 
+**Verificando a existência de heterodasticidade condicional através dos seguintes métodos:**
+
+* 1.2.1. ACF dos retornos quadráticos
+
+* 1.2.2. Teste Ljung-Box dos retornos quadráticos
+
+* 1.2.3. Teste Langrange Multiplier
+
 ### 1.2.1. ACF dos retornos ao quadrado
 
-```{r}
+```{r criando ret quadrado}
 # Gerando variável dos retornos quadráticos
 da_tsibble  <-  da_tsibble |>
   dplyr::mutate(ret2 = ret_closing_prices^2)
 ```
 
-```{r}
+```{r acf retornos ao quadrado}
+#| fig-width: 7
+#| fig-height: 10
+
 #ACF dos retornos ao quadrado
 da_tsibble |>
   ACF(ret2) |>
@@ -178,9 +235,8 @@ da_tsibble |>
 
 * TASA4 tem algumas autocorrelações significativas, mas menos pronunciadas em comparação com as outras séries.
 
-
 ### 1.2.2. Teste Ljung-Box
-```{r}
+```{r teste ljung box}
 
 resultados <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
@@ -203,39 +259,41 @@ print(resultados)
 
 **Interpretação**
 * Não rejeita a hipótese nula: NVDC34.SA
+
 * Rejeitam a hipótese nula: BCSA34.SA, RENT3.SA, PRIO3.SA e TASA4.SA, AMZO34.SA
 
 ### 1.2.3. Teste Lagrange Multiplier
-```{r}
-library(FinTS)
+```{r teste lm}
 
-resultados_ml <- data.frame(Empresa = character(), "P-Valor" = numeric())
+
+resultados_lm <- data.frame(Empresa = character(), "P-Valor" = numeric())
 
 for (empresa in ativos) {
   # Filtrar o dataframe para a empresa atual
   da_tsibble_filtered <- da_tsibble |> filter(ticker == empresa)
 
-  teste_ml <- ArchTest(da_tsibble_filtered$ret_closing_prices)
+  teste_lm <- ArchTest(da_tsibble_filtered$ret_closing_prices)
 
   # Adicionar o resultado ao dataframe de resultados
-  resultados_ml <- rbind(resultados_ml, 
+  resultados_lm <- rbind(resultados_lm, 
                                data.frame(Empresa = empresa, 
-                                          "P-Valor" = teste_ml$p.value 
+                                          "P-Valor" = teste_lm$p.value 
                                           ))
 }
 
-print(resultados_ml)
+print(resultados_lm)
 ```
 
 **Interpretação**
 * Não rejeita a hipótese nula: NVDC34.SA
+
 * Rejeitam a hipótese nula: BCSA34.SA, AMZO34.SA, RENT3.SA, PRIO3.SA, e TASA4.SA
 
 # 2. Ajustando modelos Arch / Garch
 
-## 2.1 Fit e Escolha do melhor modelo para cada ação (Menor AIC)
+## 2.1. Ajuste
 
-```{r} 
+```{r modelo garch para cada empresa}
 # Lista para comparação de modelos
 modelos_garch <- list()
 ics_modelos_garch  <- list()
@@ -243,167 +301,67 @@ resultados_tidy <- list()
 
 distribuicao_erro  <- c("norm", "std")
 
-  for (empresa in unique(da_tsibble$ticker)) {
-    retornos <- da_tsibble %>%
-    subset(ticker== empresa) %>%
-    select(ref_date,ret_closing_prices)
-  ret <- xts(retornos[,-1],order.by = ymd(retornos$ref_date))[-1,]
-  ret2 = ret**2
-  plot(ret2)
-
-    # Loop pelos parâmetros de tipo de distribuição e m e n
-    for (distribuicao in distribuicao_erro) {
-      for (m in 1:3) {
-        for (n in 0:3) {
-        
-          # Definir a fórmula do modelo com os parâmetros m e n atuais
-          formula_garch <- paste0("~garch(", m, ",", n, ")")
-
-          # Ajustar o modelo GARCH
-          modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
-                                   include.mean = TRUE, cond.dist = distribuicao)
-
-          # Armazenar o modelo ajustado na lista para visualização detalhada
-          modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao, "_", empresa)]] <- modelo_atual
-          # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
-          ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao, "_", empresa)]] <- modelo_atual@fit$ics
-        }
-      }
+for (empresa in unique(da_tsibble$ticker)) {
+  retornos <- da_tsibble %>%
+  subset(ticker== empresa) %>%
+  select(ref_date,ret_closing_prices)
+ret <- xts(retornos[,-1],order.by = ymd(retornos$ref_date))[-1,]
+ret2 = ret**2
+  # Loop pelos parâmetros de tipo de distribuição e m e n
+  for (distribuicao in distribuicao_erro) {
+    for (m in 1:3) {
+      for (n in 0:3) {
+      
+        # Definir a fórmula do modelo com os parâmetros m e n atuais
+        formula_garch <- paste0("~garch(", m, ",", n, ")")
+        # Ajustar o modelo GARCH
+        modelo_atual <- garchFit(formula = as.formula(formula_garch), data = ret, trace = FALSE, 
+                                 include.mean = TRUE, cond.dist = distribuicao)
+        # Armazenar o modelo ajustado na lista para visualização detalhada
+        modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao, "_", empresa)]] <- modelo_atual
+        # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+        ics_modelos_garch[[paste0("garch_", m, "_", n, "_", distribuicao, "_", empresa)]] <- modelo_atual@fit$ics
     }
-
-    # Formatando resultados para melhor visualização 
-    for (nome_modelo in names(ics_modelos_garch)) {
-      valores <- ics_modelos_garch[[nome_modelo]]
-      df <- data.frame(
-        AIC = valores["AIC"],
-        BIC = valores["BIC"]
-      )
-        resultados_tidy[[nome_modelo]] <- df
-    }
-    } 
-    resultados_tidy_df <- do.call(rbind, resultados_tidy)
-
-resultados_tidy_df2 <- resultados_tidy_df  %>% rownames_to_column()  %>% 
-                          separate(rowname, c("Modelo", "m", "n", "dist", "ticker"),
-                          sep = "_")  %>% 
-                          arrange(AIC)  %>% 
-                          distinct(ticker, .keep_all = TRUE)
-
-print(resultados_tidy_df2)          
-
-```
-
-### 2.1.2. Avaliação do melhor modelo de cada ação
-
-Análise detalhada do melhor modelo de cada ação pelos critérios de informação
-```{r}
-Resumo_AMAZO34 <- summary(modelos_garch$garch_1_2_std_AMZO34.SA)
-Resumo_BCSA34 <- summary(modelos_garch$garch_1_1_std_BCSA34.SA)
-Resumo_RENT3 <- summary(modelos_garch$garch_2_1_std_RENT3.SA)
-Resumo_TASA4 <- summary(modelos_garch$garch_1_1_std_TASA4.SA)
-Resumo_NVDC34 <- summary(modelos_garch$garch_1_1_std_NVDC34.SA)
-Resumo_PRIO3 <- summary(modelos_garch$garch_1_1_std_PRIO3.SA)
-
-print(Resumo_AMAZO34)
-print(Resumo_BCSA34)
-print(Resumo_RENT3)
-print(Resumo_TASA4)
-print(Resumo_NVDC34)
-print(Resumo_PRIO3)
-
-# ARRUMAR CÓDIGO 
-
-```
-
-**Interpretação**
-
-* Baseado nos coeficientes e nos critérios de informação:
-
-* AMAZO34 tem os valores mais baixos de AIC (-4.853336), BIC (-4.826964), SIC (-4.853390) e HQIC (-4.843380), indicando que é o melhor modelo entre as ações analisadas.
-* BCSA34 tem os próximos melhores valores dos critérios.
-* RENT3, TASA4, NVDC34 e PRIO3 seguem, com valores crescentes dos critérios, indicando um ajuste inferior comparado a AMAZO34 e BCSA34.
-
-* Conclusão: Com base nos Critérios de Informação, o modelo para AMAZO34 é o que apresenta o melhor ajuste entre os modelos apresentados, seguido pelo modelo para BCSA34. 
-
-### 2.1.3. Análise dos retornos e volatilidade 
-
-Gráfico dos retornos de cada ação
-```{r}
-
-retornos <- da_tsibble %>%
-    select(ref_date,ret_closing_prices)
-  ret <- xts(retornos[,-1],order.by = ymd(retornos$ref_date))[-1,]
-
-da_tsibble |>
-  dplyr::mutate(ret = ret_closing_prices) |>
-  autoplot(ret, colour = "black") +
-  facet_wrap(~ticker, ncol = 1)
-```
-
-**Interpretação**
-
-* AMAZO34 e PRIO3 destacam-se pela alta volatilidade, indicando uma maior sensibilidade a eventos de mercado. 
-* NVDC34 também mostra volatilidade significativa, refletindo a natureza dinâmica do setor de tecnologia. 
-* Em contraste, BCSA34 e TASA4 são mais estáveis, indicando menor exposição a variações extremas. 
-* RENT3, inicialmente volátil, parece se estabilizar com o tempo, sugerindo uma adaptação do mercado às suas operações
-
-Gráfico da volatilidade de cada ação
-```{r}
-
-model_names <- c(
-  "garch_1_2_std_AMZO34.SA",
-  "garch_1_1_std_BCSA34.SA",
-  "garch_1_1_std_PRIO3.SA",
-  "garch_1_1_std_NVDC34.SA",
-  "garch_1_1_std_TASA4.SA",
-  "garch_1_1_std_BCSA34.SA"
-)
-titles <- c(
-  "Volatilidade AMZO34.SA",
-  "Volatilidade BCSA34.SA",
-  "Volatilidade PRIO3.SA",
-  "Volatilidade NVDC34.SA",
-  "Volatilidade TASA4.SA",
-  "Volatilidade BCSA34.SA"
-)
-
-par(mfrow = c(6, 1)) 
-
-sigma  <-  list()
-for (i in 1:length(model_names)) {
-  model_name <- model_names[i]
-  title <- titles[i]
-  
-  model <- modelos_garch[[model_name]]
-  sigma <- cbind(model@sigma.t) 
-  
-  print(plot(model@sigma.t, main = title))
   }
+}
+  # Formatando resultados para melhor visualização 
+  for (nome_modelo in names(ics_modelos_garch)) {
+    valores <- ics_modelos_garch[[nome_modelo]]
+    df <- data.frame(
+      AIC = valores["AIC"],
+      BIC = valores["BIC"]
+    )
+      resultados_tidy[[nome_modelo]] <- df
+  }
+} 
+
+resultados_tidy_df <- do.call(rbind, resultados_tidy) %>% 
+  rownames_to_column()  %>% 
+    separate(rowname, c("Modelo", "m", "n", "dist", "ticker"),
+    sep = "_")  %>% 
+    arrange(AIC)  %>% 
+    distinct(ticker, .keep_all = TRUE)
+
+resultados_tidy_df
 ```
 
-**Interpretação**
-
-* AMAZO34 e PRIO3 mostram uma alta volatilidade inicial, com uma diminuição ao longo do tempo, mas com surtos periódicos significativos.
-* BCSA34 e TASA4 têm uma volatilidade que diminui rapidamente e se estabiliza, com menos picos extremos.
-* NVDC34 apresenta uma alta volatilidade com flutuações frequentes, refletindo a natureza dinâmica do setor de tecnologia.
-* RENT3 tem alta volatilidade inicial que diminui com o tempo, mas com surtos ocasionais, indicando períodos de instabilidade e reações a eventos de mercado.
-
-## 2.1.4. Análise dos resíduos
-
-```{r}
+## 2.2. Análise dos resíduos
+```{r analise dos residuos}
 
 residuos <- list()
 par(mfrow = c(6, 1))
 
-# Iterando sobre cada linha do data frame `resultados_tidy_df2`
-for (i in 1:nrow(resultados_tidy_df2)) {
+# Iterando sobre cada linha do data frame `resultados_tidy_df`
+
+for (i in 1:nrow(resultados_tidy_df)) {
   
   # Concatenando o nome do modelo 
-  model_name <- paste0(resultados_tidy_df2$Modelo[i], "_", 
-                       resultados_tidy_df2$m[i], "_", 
-                       resultados_tidy_df2$n[i], "_", 
-                       resultados_tidy_df2$dist[i], "_", 
-                       resultados_tidy_df2$ticker[i])
+  model_name <- paste0(resultados_tidy_df$Modelo[i], "_", 
+                       resultados_tidy_df$m[i], "_", 
+                       resultados_tidy_df$n[i], "_", 
+                       resultados_tidy_df$dist[i], "_", 
+                       resultados_tidy_df$ticker[i])
+
   
   # Checando se o modelo está entre os melhores
   if (model_name %in% names(modelos_garch)) {
@@ -415,6 +373,10 @@ for (i in 1:nrow(resultados_tidy_df2)) {
     ts.plot(residuos[[model_name]], main = model_name)
   }
 }
+
+
+=======
+
 ```
 
 **Interpretação**
@@ -422,60 +384,38 @@ for (i in 1:nrow(resultados_tidy_df2)) {
 * Outliers: Todos os gráficos têm alguns outliers, o que faz sentido em séries financeiras. 
 * Heterocedasticidade: três ações mostram variações na amplitude dos resíduos, sugerindo que pode haver alguma heterocedasticidade residual (RENT3.SA & NVDC334.SA & BCSA34.SA). 
 
-## 3.0 Prever volatilidade um passo à frente
 
-Função que ajusta o modelo e faz as previsões
+# 3. Previsão dos Ativos
 ```{r}
 
-# Dados de exemplo (volatilidade_passo_frente)
-volatilidade_passo_frente <- data.frame(
-  Modelo = c("garch", "garch", "garch", "garch", "garch", "garch"),
-  m = c(1, 1, 2, 1, 1, 1),
-  n = c(2, 1, 1, 1, 1, 1),
-  dist = c("std", "std", "std", "std", "std", "std"),
-  ticker = c("AMZO34.SA", "BCSA34.SA", "RENT3.SA", "TASA4.SA", "NVDC34.SA", "PRIO3.SA"),
-  AIC = c(-4.853336, -4.751056, -4.609009, -4.227347, -4.109136, -4.106262),
-  BIC = c(-4.826964, -4.729079, -4.582637, -4.205371, -4.087160, -4.084286)
+forecast_amazon <- predict(modelos_garch$garch_1_2_std_AMZO34.SA, n.ahead = 1)
+forecast_santander <- predict(modelos_garch$garch_1_1_std_BCSA34.SA, n.ahead = 1)
+forecast_nvidia <- predict(modelos_garch$garch_1_1_std_NVDC34.SA, n.ahead = 1)
+forecast_localiza <- predict(modelos_garch$garch_2_1_std_RENT3.SA, n.ahead = 1)
+forecast_prio <- predict(modelos_garch$garch_1_1_std_PRIO3.SA, n.ahead = 1)
+forecast_taurus <- predict(modelos_garch$garch_1_1_std_TASA4.SA, n.ahead = 1)
+
+
+# Criar um vetor com as previsões de volatilidade para cada ativo
+vetor_previsoes <- c(
+  forecast_nvidia$standardDeviation,
+  forecast_santander$standardDeviation,
+  forecast_amazon$standardDeviation,
+  forecast_localiza$standardDeviation,
+  forecast_prio$standardDeviation,
+  forecast_taurus$standardDeviation
 )
 
-# Função para prever a volatilidade um passo à frente
-prever_volatilidade <- function(ticker, m, n, dist) {
-  # Simulação de dados de retorno (substitua com seus próprios dados)
-  set.seed(123)
-  returns <- rnorm(1000)
+# Criar um dataframe com os nomes dos ativos
+forecast_ativos <- data.frame(
+  ativo = c("AMZO34.SA", "BCSA34.SA", "NVDC34.SA", "RENT3.SA", "PRIO3.SA", "TASA4.SA"),
+  serie = vetor_previsoes
+)
 
-  # Configuração do modelo GARCH
-  spec <- ugarchspec(
-    variance.model = list(model = "sGARCH", garchOrder = c(m, n)),
-    mean.model = list(armaOrder = c(0, 0)),
-    distribution.model = dist
-  )
-  
-  # Ajustar o modelo GARCH
-  fit <- ugarchfit(spec = spec, data = returns)
-  
-  # Prever a volatilidade um passo à frente
-  forecast <- ugarchforecast(fit, n.ahead = 1)
-  sigma_forecast <- sigma(forecast)
-  
-  return(sigma_forecast)
-}
+# Exibir o dataframe criado
+print(forecast_ativos)
 
-# Loop para prever a volatilidade para cada modelo na lista
-volatilidade_passo_frente$volatilidade_forecast <- NA
-
-for (i in 1:nrow(volatilidade_passo_frente)) {
-  ticker <- volatilidade_passo_frente$ticker[i]
-  m <- volatilidade_passo_frente$m[i]
-  n <- volatilidade_passo_frente$n[i]
-  dist <- volatilidade_passo_frente$dist[i]
-  
-  volatilidade <- prever_volatilidade(ticker, m, n, dist)
-  volatilidade_passo_frente$volatilidade_forecast[i] <- volatilidade
-}
-
-# Mostrar os resultados
-print(volatilidade_passo_frente)
+# 3. Previsão da volatilidade dos Ativos
 
 ```
 
@@ -488,5 +428,253 @@ print(volatilidade_passo_frente)
 * Volatilidade Intermediária: Localiza tem uma volatilidade moderada, compatível com o setor de mobilidade que combina demanda estável com variações econômicas.
 
 * Obs: NVIDIA está surfando o boom de IA, alcançando os USDD3Tri de valor de mercado, tendência de continuar subida de preço. 
-Obs: Santander, bancos tendem a ser mais estáveis no mercado brasileiro. 
+* Obs: Santander, bancos tendem a ser mais estáveis no mercado brasileiro. 
 
+## 4.2. Modelagem Garch do Portfolio
+```{r modelagem garch portfolio}
+modelos_garch_portfolio <- list()
+ics_modelos_garch_portfolio  <- list()
+resultados_tidy_portfolio <- list()
+
+
+for (distribuicao in distribuicao_erro) {
+  for (m in 1:3) {
+    for (n in 0:3) {
+    
+      # Definir a fórmula do modelo com os parâmetros m e n atuais
+      formula_garch <- paste0("~garch(", m, ",", n, ")")
+
+      # Ajustar o modelo GARCH
+      modelo_atual <- garchFit(
+        formula = as.formula(formula_garch),
+        data = retorno_ponderado_portfolio$retornos,
+        trace = FALSE,          
+        include.mean = TRUE, 
+        cond.dist = distribuicao)
+
+      # Armazenar o modelo ajustado na lista para visualização detalhada
+      modelos_garch_portfolio[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual
+      
+      # Armazenar o modelo ajustado na lista para comparação dos critérios de informação
+      ics_modelos_garch_portfolio[[paste0("garch_", m, "_", n, "_", distribuicao)]] <- modelo_atual@fit$ics
+    }
+  }
+}
+# Formatando resultados para melhor visualização 
+  for (nome_modelo in names(ics_modelos_garch_portfolio)) {
+    valores <- ics_modelos_garch_portfolio[[nome_modelo]]
+    df <- data.frame(
+      AIC = valores["AIC"],
+      BIC = valores["BIC"]
+    )
+      resultados_tidy_portfolio[[nome_modelo]] <- df
+}
+
+resultados_tidy_df_portfolio <- do.call(rbind, resultados_tidy_portfolio)%>% 
+  rownames_to_column()  %>% 
+
+    arrange(AIC)  %>% 
+    slice(1)
+
+resultados_tidy_df_portfolio
+```
+
+## 4.3. Forecast do Portfólio
+```{r forecast portfolio}
+forecast_volatilidade_portifolio <- predict(modelos_garch_portfolio$garch_1_1_std, n.ahead = 1)
+forecast_volatilidade_portifolio
+```
+
+# Otimização do Portfólio
+formatando para wide e transformando em formato objeto xts
+```{r}
+ 
+portfolio_wide_xts  <-  portfolio %>% 
+  spread(ticker, value = ret_closing_prices)  %>% 
+    tk_xts()
+# Retirando coluna de data
+portfolio_wide_xts <- portfolio_wide_xts[,-7]
+# Convertendo colunas para numéricas
+portfolio_wide_xts <- apply(portfolio_wide_xts, 2, as.numeric)
+ 
+```
+
+### Matriz covariância
+```{r matriz covariancia}
+cov_mat <- cov(portfolio_wide_xts) * 252
+print(round(cov_mat,4))
+```
+
+### Media de retornos
+```{r media de retornos portfolio }
+media_retornos  <- colMeans(portfolio_wide_xts)
+media_retornos
+``` 
+
+### Risco (Desvio Padrão)
+```{r risco portfolio}
+risco_portfolio  <- sqrt(t(pesos) %*% (cov_mat %*% pesos))
+```
+
+### Sharpe ratio
+```{r sharpe ratio}
+sharpe_ratio  <- media_retornos / risco_portfolio
+```
+
+```{r otimizacao portfolio}
+
+numero_simulacoes_portfolio = 5000
+
+simulacao_retornos <- function(i) {
+  pesos <- runif(length(ativos))
+  pesos <- pesos / sum(pesos)
+  retorno_portfolio <- sum(pesos * media_retornos)
+  desvio_padrao_portfolio <- as.numeric(sqrt(t(pesos) %*% (cov_mat %*% pesos)))
+  sr <- retorno_portfolio / desvio_padrao_portfolio
+
+  pesos |>
+    purrr::set_names(ativos) |>
+    tibble::enframe() |>
+    tidyr::pivot_wider() |>
+    dplyr::mutate(
+      return = retorno_portfolio,
+      risk = desvio_padrao_portfolio,
+      sharpe = sr
+    )
+}
+
+portfolio_values <- purrr::map(1:2000, simulacao_retornos, .progress = TRUE) |>
+  bind_rows(.id = "run")
+
+min_var <- portfolio_values[which.min(portfolio_values$risk),]
+max_sr <- portfolio_values[which.max(portfolio_values$sharpe),]
+
+```
+
+Gráfico de mínimo Value at Risk
+```{r grafico min var}
+
+min_var |>
+  pivot_longer(2:7) |>
+  mutate(name = forcats::fct_reorder(name, value)) |>
+  ggplot(aes(name, value)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Ativos",
+    y = "Pesos",
+    title = "Portfólio de mínima variância "
+  )
+```
+
+Gráfico de máximo Value at Risk
+```{r grafico max sr}
+max_sr |>
+  pivot_longer(2:7) |>
+  mutate(name = forcats::fct_reorder(name, value)) |>
+  ggplot(aes(name, value)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Ativos",
+    y = "Pesos",
+    title = "Tangency portfolio weights"
+  )
+```
+
+Gráfico otimização
+```{r grafico retornos risco}
+portfolio_values |>
+  ggplot(aes(x = risk, y = return, color = sharpe)) +
+  geom_point() +
+  theme_classic() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(
+    x = 'Risk',
+    y = 'Returns',
+    title = "Otimização de Portfólio e Fronteira Eficiente"
+  ) +
+  geom_point(
+    aes(x = risk, y = return),
+    data = min_var,
+    color = 'green',
+    size = 3
+  ) +
+  geom_point(
+    aes(x = risk, y = return),
+    data = max_sr,
+    color = 'orange',
+    size = 3
+  )
+```
+
+
+## VaR do portfolio
+```{r}
+pesos_finais <- min_var |>
+  dplyr::select(2:7) |>
+  as.numeric()
+
+rt_final <- mean(forecast_ativos$serie * pesos_finais)
+st_dev_final <- sqrt(pesos_finais %*% cov_mat %*% pesos_finais)
+nu <- min(vol_futuro$shape)
+valor_t <- qt(.95, nu)
+
+(VaR <- rt_final + valor_t * st_dev_final / sqrt(nu/(nu-2)))
+```
+
+# CAPM
+```{r}
+
+retornos_portfolio_mercado <- retornos_mercado_arit |>
+  dplyr::inner_join(retorno_ponderado_portfolio, "ref_date") |>
+  tidyr::drop_na()
+
+(beta_geral <- with(retornos_portfolio_mercado, cov(retornos, ibov) / var(ibov)))
+
+calcular_beta <- function(ativo) {
+  da_tsibble |>
+    dplyr::filter(ticker == ativo) |>
+    dplyr::inner_join(retornos_mercado_arit, "ref_date") |>
+    tidyr::drop_na() |>
+    with(cov(ret_closing_prices, ibov) / var(ibov))
+}
+
+betas <- purrr::map_dbl(ativos, calcular_beta) |>
+  purrr::set_names(ativos)
+
+sum(betas * pesos_finais)
+beta_geral
+
+```
+
+```{r}
+
+capm_lm_tudo <- lm(retornos ~ ibov, data = retornos_portfolio_mercado) |>
+  broom::tidy() |>
+  dplyr::filter(term == "ibov") |>
+  with(estimate)
+
+capm_lm_individual <- purrr::map_dbl(ativos, \(ativo) {
+  da_model <- da_tsibble |>
+    dplyr::filter(ticker == ativo) |>
+    dplyr::inner_join(retornos_mercado_arit, "ref_date")
+  lm(ret_closing_prices ~ ibov, data = da_model) |>
+    broom::tidy() |>
+    dplyr::filter(term == "ibov") |>
+    dplyr::pull(estimate)
+}) |>
+  purrr::set_names(ativos)
+
+capm_lm_tudo
+
+capm_lm_individual
+```
+
+
+1. Calcular retorno da carteira otimizada
+2. Comparar retornos <- ?
+3. Arrumar CAPM
+4. Interpretar CAPM
+5. Matriz de covariância <- ?
