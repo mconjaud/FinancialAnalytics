@@ -791,3 +791,14 @@ capm_lm_individual
 
 **Interpretação**
 
+* (1) Beta geral do portfólio não ponderado: 0.6386264 
+* Esse valor indica que o portfólio, como um todo, possui uma sensibilidade de 0.6386264 em relação ao mercado. 
+* A cada +1% que o mercado subir, nosso portfólio deve crescer 0.6386264%.
+
+* (2) Beta geral do portfólio ponderado: 0.6830366
+* Ao ponderar o portfólio alcançamos retorno levemente superior
+* A cada +1% que o mercado subir, nosso portfólio deve crescer 0.6830366%.
+
+Em suma, nossa carteira tende a ter movimentos menores em resposta as variações do Ibov, o que deve diminuir o retorno e, em contra partida, diminuiro risco. Sendo assim, uma carteira focada na segurança. 
+
+* Obs: Importante salientar que as ações Nvidia e Amazon são "BDRs", o que aplica flutuação câmbial nos retornos. 
