@@ -45,8 +45,7 @@ library(plotly)
 library(timetk)
 ```
 
-
-Seleção das Ações/Ativos e definição da data de início: 01/01/2019
+Importação das bases de dados
 ```{r importacao dados}
 #| output: false
 
@@ -99,7 +98,7 @@ da_tsibble <- da_train |>
 
 retornos_mercado_log  <- yfR::yf_get(
     '^BVSP',
-    first_date = data_inicio,
+    first_date = data_corte,
     last_date = Sys.Date(),
     bench_ticker = "^BVSP",
     type_return = "log",
@@ -114,22 +113,21 @@ retornos_mercado_log  <- yfR::yf_get(
 
 retornos_mercado_arit  <- yfR::yf_get(
     '^BVSP',
-    first_date = data_inicio,
+    first_date = data_corte + 1,
     last_date = Sys.Date(),
     bench_ticker = "^BVSP",
     type_return = "arit",
     freq_data = "daily",
     do_complete_data = TRUE
     )  %>% 
-    select(ref_date, ret_closing_prices)  %>%
+    select(ref_date, ibov = ret_closing_prices)  %>%
     filter(ref_date > data_corte)  %>%  
     na.omit()  %>% 
     distinct(ref_date, .keep_all = TRUE)
 
-
 retornos_carteira_arit <- yfR::yf_get(
     ativos,
-    first_date = data_inicio,
+    first_date = data_corte,
     last_date = Sys.Date(),
     bench_ticker = "^BVSP",
     type_return = "arit",
@@ -138,6 +136,7 @@ retornos_carteira_arit <- yfR::yf_get(
     ) %>% 
     select( ref_date, ret_closing_prices )  %>% 
     na.omit()
+
 ```
 
 # 1. Gráficos de Preço, Retorno e Avaliação de Heterodasticidade Condicional
@@ -383,7 +382,6 @@ str(residuos)
 # 4. Portfólio
 
 ## 4.1. Retorno ponderado, Risco e Ratio
-
 ```{r retorno portfolio}
 
 pesos  <- c(0.10, 0.20, 0.20, 0.10, 0.20, 0.20) %>% 
@@ -458,11 +456,13 @@ resultados_tidy_df_portfolio
 ```
 
 ## 4.3. Forecast do Portfólio
-
 ```{r forecast portfolio}
 forecast_volatilidade_portifolio <- predict(modelos_garch_portfolio$garch_1_1_std, n.ahead = 1)
 forecast_volatilidade_portifolio
 ```
+
+# Otimização do Portfólio
+
 formatando para wide e transformando em formato objeto xts
 ```{r}
  
@@ -476,7 +476,6 @@ portfolio_wide_xts <- apply(portfolio_wide_xts, 2, as.numeric)
 
  
 ```
-
 
 ### Matriz covariância
 ```{r matriz covariancia}
@@ -500,7 +499,6 @@ risco_portfolio  <- sqrt(t(pesos) %*% (cov_mat %*% pesos))
 sharpe_ratio  <- media_retornos / risco_portfolio
 ```
 
-# Otimização do Portfólio
 ```{r otimizacao portfolio}
 
 numero_simulacoes_portfolio = 5000
@@ -531,6 +529,7 @@ max_sr <- portfolio_values[which.max(portfolio_values$sharpe),]
 
 ```
 
+Gráfico de mínimo Value at Risk
 ```{r grafico min var}
 
 min_var |>
@@ -540,14 +539,13 @@ min_var |>
   geom_col() +
   scale_y_continuous(labels = scales::percent) +
   labs(
-    x = "Asset",
-    y = "Weight",
-    title = "Minimum variance portfolio weights"
+    x = "Ativos",
+    y = "Pesos",
+    title = "Portfólio de mínima variância "
   )
-
-
 ```
 
+Gráfico de máximo Value at Risk
 ```{r grafico max var}
 max_sr |>
   pivot_longer(2:7) |>
@@ -556,13 +554,13 @@ max_sr |>
   geom_col() +
   scale_y_continuous(labels = scales::percent) +
   labs(
-    x = "Asset",
-    y = "Weight",
+    x = "Ativos",
+    y = "Pesos",
     title = "Tangency portfolio weights"
   )
 ```
 
-
+Gráfico otimização
 ```{r grafico retornos risco}
 portfolio_values |>
   ggplot(aes(x = risk, y = return, color = sharpe)) +
@@ -573,7 +571,7 @@ portfolio_values |>
   labs(
     x = 'Risk',
     y = 'Returns',
-    title = "Portfolio Optimization & Efficient Frontier"
+    title = "Otimização de Portfólio e Fronteira Eficiente"
   ) +
   geom_point(
     aes(x = risk, y = return),
@@ -589,6 +587,50 @@ portfolio_values |>
   )
 ```
 
+# CAPM
+```{r}
 
+retornos_portfolio_mercado <- retornos_mercado_arit |>
+  dplyr::inner_join(retorno_ponderado_portfolio, "ref_date") |>
+  tidyr::drop_na()
 
+(beta_geral <- with(retornos_portfolio_mercado, cov(retornos, ibov) / var(ibov)))
 
+calcular_beta <- function(ativo) {
+  da_tsibble |>
+    dplyr::filter(ticker == ativo) |>
+    dplyr::inner_join(retornos_mercado_arit, "ref_date") |>
+    tidyr::drop_na() |>
+    with(cov(ret_closing_prices, ibov) / var(ibov))
+}
+
+betas <- purrr::map_dbl(ativos, calcular_beta) |>
+  purrr::set_names(ativos)
+
+sum(betas * pesos_finais)
+beta_geral
+
+```
+
+```{r}
+
+capm_lm_tudo <- lm(retornos ~ ibov, data = retornos_portfolio_mercado) |>
+  broom::tidy() |>
+  dplyr::filter(term == "ibov") |>
+  with(estimate)
+
+capm_lm_individual <- purrr::map_dbl(ativos, \(ativo) {
+  da_model <- da_tsibble |>
+    dplyr::filter(ticker == ativo) |>
+    dplyr::inner_join(retornos_mercado_arit, "ref_date")
+  lm(ret_closing_prices ~ ibov, data = da_model) |>
+    broom::tidy() |>
+    dplyr::filter(term == "ibov") |>
+    dplyr::pull(estimate)
+}) |>
+  purrr::set_names(ativos)
+
+capm_lm_tudo
+
+capm_lm_individual
+```
